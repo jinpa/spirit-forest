@@ -65,14 +65,14 @@ interface GameState {
   screenShake: number;
 }
 
-const GRAVITY = 0.35;
-const LIFT_FORCE = -0.25;
-const MAX_FALL_SPEED = 8;
-const MAX_LIFT_SPEED = -4;
-const HORIZONTAL_SPEED = 3;
-const UMBRELLA_OPEN_SPEED = 0.15;
-const UMBRELLA_CLOSE_SPEED = 0.1;
-const BOUNCE_DAMPENING = 0.7;
+const GRAVITY = 0.55;
+const LIFT_FORCE = -0.45;
+const MAX_FALL_SPEED = 10;
+const MAX_LIFT_SPEED = -5;
+const HORIZONTAL_SPEED = 4;
+const UMBRELLA_OPEN_SPEED = 0.12;
+const UMBRELLA_CLOSE_SPEED = 0.15;
+const BOUNCE_DAMPENING = 0.75;
 const SQUISH_RECOVERY = 0.08;
 
 const COLORS = {
@@ -316,9 +316,9 @@ export default function Game() {
     }
 
     for (const firefly of state.fireflies) {
-      firefly.phase += deltaTime * firefly.speed;
-      firefly.y = firefly.baseY + Math.sin(firefly.phase) * 30;
-      firefly.brightness = 0.3 + Math.sin(firefly.phase * 2) * 0.5 + 0.2;
+      firefly.phase += deltaTime * firefly.speed * 0.5;
+      firefly.y = firefly.baseY + Math.sin(firefly.phase) * 20;
+      firefly.brightness = 0.5 + Math.sin(firefly.phase * 0.8) * 0.3;
     }
 
     state.platforms = state.platforms.filter(p => p.x - state.distance > -200);
@@ -342,7 +342,7 @@ export default function Game() {
       return p.life > 0;
     });
 
-    if (Math.random() < 0.02) {
+    if (Math.random() < 0.005) {
       spawnParticles(
         state.position.x + 100 + Math.random() * 200,
         50 + Math.random() * 100,
@@ -391,8 +391,27 @@ export default function Game() {
       }
     };
 
-    drawMistLayer(100, 0.1, 0.05);
-    drawMistLayer(180, 0.08, 0.08);
+    drawMistLayer(100, 0.1, 0.08);
+    drawMistLayer(180, 0.08, 0.12);
+
+    const drawCloud = (baseX: number, y: number, size: number, speed: number) => {
+      const x = ((baseX - state.distance * speed) % (canvas.width + 400)) - 100;
+      ctx.fillStyle = 'rgba(220, 235, 245, 0.25)';
+      ctx.beginPath();
+      ctx.ellipse(x, y, size * 1.2, size * 0.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(x - size * 0.5, y + 5, size * 0.7, size * 0.3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(x + size * 0.6, y + 3, size * 0.8, size * 0.35, 0, 0, Math.PI * 2);
+      ctx.fill();
+    };
+
+    drawCloud(200, 80, 60, 0.15);
+    drawCloud(500, 120, 50, 0.12);
+    drawCloud(800, 70, 70, 0.18);
+    drawCloud(1100, 100, 55, 0.14);
 
     const drawForestLayer = (yBase: number, color: string, speed: number, treeHeight: number) => {
       ctx.fillStyle = color;
@@ -414,29 +433,29 @@ export default function Game() {
       ctx.fill();
     };
 
-    drawForestLayer(450, COLORS.forest.far, 0.1, 80);
-    drawForestLayer(480, COLORS.forest.mid, 0.2, 100);
-    drawForestLayer(520, COLORS.forest.near, 0.3, 120);
+    drawForestLayer(450, COLORS.forest.far, 0.15, 80);
+    drawForestLayer(480, COLORS.forest.mid, 0.3, 100);
+    drawForestLayer(520, COLORS.forest.near, 0.5, 120);
 
     for (const firefly of state.fireflies) {
       const relativeX = ((firefly.x - state.distance * 0.15) % (canvas.width + 100));
       const adjustedX = relativeX < 0 ? relativeX + canvas.width + 100 : relativeX;
       
       ctx.save();
-      ctx.globalAlpha = firefly.brightness * 0.8;
+      ctx.globalAlpha = firefly.brightness * 0.5;
       
-      const glowGradient = ctx.createRadialGradient(adjustedX, firefly.y, 0, adjustedX, firefly.y, firefly.size * 8);
-      glowGradient.addColorStop(0, 'rgba(255, 255, 180, 0.6)');
-      glowGradient.addColorStop(0.3, 'rgba(255, 255, 150, 0.3)');
-      glowGradient.addColorStop(1, 'rgba(255, 255, 100, 0)');
+      const glowGradient = ctx.createRadialGradient(adjustedX, firefly.y, 0, adjustedX, firefly.y, firefly.size * 6);
+      glowGradient.addColorStop(0, 'rgba(255, 255, 200, 0.4)');
+      glowGradient.addColorStop(0.4, 'rgba(255, 255, 180, 0.2)');
+      glowGradient.addColorStop(1, 'rgba(255, 255, 150, 0)');
       ctx.fillStyle = glowGradient;
       ctx.beginPath();
-      ctx.arc(adjustedX, firefly.y, firefly.size * 8, 0, Math.PI * 2);
+      ctx.arc(adjustedX, firefly.y, firefly.size * 6, 0, Math.PI * 2);
       ctx.fill();
       
-      ctx.fillStyle = '#ffffaa';
+      ctx.fillStyle = 'rgba(255, 255, 220, 0.8)';
       ctx.beginPath();
-      ctx.arc(adjustedX, firefly.y, firefly.size, 0, Math.PI * 2);
+      ctx.arc(adjustedX, firefly.y, firefly.size * 0.8, 0, Math.PI * 2);
       ctx.fill();
       
       ctx.restore();
