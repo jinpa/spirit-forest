@@ -126,7 +126,7 @@ export class ForestSpiritScene extends Phaser.Scene {
     this.soundTogglePause = this.add.text(this.scale.width / 2, this.scale.height / 2 + 100, '', soundStyle)
       .setOrigin(0.5).setDepth(30).setVisible(false).setInteractive({ useHandCursor: true });
 
-    this.add.text(this.scale.width - 20, this.scale.height - 20, 'v1.0.2', { ...fontBase, fontSize: '14px', color: '#a0b8c0', shadow })
+    this.add.text(this.scale.width - 20, this.scale.height - 20, 'v1.0.3', { ...fontBase, fontSize: '14px', color: '#a0b8c0', shadow })
       .setOrigin(1, 1).setDepth(10);
 
     this.soundToggleStart.on('pointerdown', (p: Phaser.Input.Pointer) => {
@@ -659,27 +659,118 @@ export class ForestSpiritScene extends Phaser.Scene {
 
     if (uo > 0.1) {
       const flipped = this.inGust && uo > 0.3;
-      const uy = y - (45 + uo * 15) * sq;
       const us = 35 + uo * 25;
-      const domeY = flipped ? uy + us * 0.6 * uo : uy;
-      const flipDir = flipped ? -1 : 1;
+      const poleTop = y - (55 + uo * 20) * sq;
+      const poleBot = y - 15 * sq;
 
-      g.lineStyle(4, 0x8b5a4a, 1);
-      g.beginPath(); g.moveTo(x, uy + us * 0.8); g.lineTo(x, domeY - 5 * flipDir); g.strokePath();
+      g.lineStyle(3, 0x7a4a3a, 1);
+      g.beginPath(); g.moveTo(x, poleBot); g.lineTo(x, poleTop); g.strokePath();
 
-      g.fillStyle(0xe4a0a8, 1);
-      g.fillEllipse(x, domeY, us * 2, us * 0.8 * uo);
-      g.fillStyle(0xd47a8a, 0.5);
-      g.fillEllipse(x, domeY, us * 1.6, us * 0.6 * uo);
+      g.lineStyle(3, 0x7a4a3a, 1);
+      g.beginPath();
+      g.arc(x + 6, poleBot, 6, -Math.PI * 0.5, Math.PI * 0.5, false);
+      g.strokePath();
 
-      g.lineStyle(2, 0xc06070, 1);
-      for (let i = 0; i < 8; i++) {
-        const a = (flipped ? 0 : Math.PI) + (Math.PI * i) / 7;
-        g.beginPath(); g.moveTo(x, domeY); g.lineTo(x + Math.cos(a) * us, domeY + Math.sin(a) * us * 0.4 * uo); g.strokePath();
-      }
+      g.fillStyle(0x8b5a4a, 1);
+      g.fillCircle(x, poleTop, 3);
+
       if (!flipped) {
+        const domeY = poleTop + 4;
+        const domeH = us * 0.5 * uo;
+
+        g.fillStyle(0xe4a0a8, 1);
+        g.beginPath();
+        g.moveTo(x - us, domeY);
+        g.lineTo(x - us * 0.95, domeY + domeH * 0.15);
+        for (let i = 1; i < 20; i++) {
+          const t = i / 20;
+          const cx = x - us + t * us * 2;
+          const cy = domeY + Math.sin(t * Math.PI) * domeH;
+          g.lineTo(cx, cy);
+        }
+        g.lineTo(x + us, domeY);
+        g.closePath();
+        g.fillPath();
+
+        g.fillStyle(0xd47a8a, 0.4);
+        g.beginPath();
+        g.moveTo(x - us * 0.8, domeY);
+        for (let i = 1; i < 16; i++) {
+          const t = i / 16;
+          const cx = x - us * 0.8 + t * us * 1.6;
+          const cy = domeY + Math.sin(t * Math.PI) * domeH * 0.7;
+          g.lineTo(cx, cy);
+        }
+        g.lineTo(x + us * 0.8, domeY);
+        g.closePath();
+        g.fillPath();
+
+        g.lineStyle(1.5, 0xc06070, 0.7);
+        for (let i = 0; i < 7; i++) {
+          const t = (i + 1) / 8;
+          const ribX = x - us + t * us * 2;
+          const ribY = domeY + Math.sin(t * Math.PI) * domeH;
+          g.beginPath(); g.moveTo(x, domeY); g.lineTo(ribX, ribY); g.strokePath();
+        }
+
+        g.lineStyle(2, 0xb06878, 0.8);
+        g.beginPath();
+        g.moveTo(x - us, domeY);
+        for (let i = 1; i <= 20; i++) {
+          const t = i / 20;
+          g.lineTo(x - us + t * us * 2, domeY + Math.sin(t * Math.PI) * domeH);
+        }
+        g.strokePath();
+
         g.fillStyle(0xffffff, 0.2);
-        g.fillEllipse(x - us * 0.3, uy - us * 0.15 * uo, us * 0.5, us * 0.2 * uo);
+        g.fillEllipse(x - us * 0.3, domeY + domeH * 0.2, us * 0.5, domeH * 0.3);
+      } else {
+        const domeY = poleTop - 2;
+        const domeH = us * 0.55 * uo;
+        const wobble = Math.sin(this.t * 8) * 3;
+
+        g.fillStyle(0xd47a8a, 1);
+        g.beginPath();
+        g.moveTo(x - us * 0.85 + wobble, domeY);
+        for (let i = 1; i < 20; i++) {
+          const t = i / 20;
+          const cx = x - us * 0.85 + wobble + t * us * 1.7;
+          const cy = domeY - Math.sin(t * Math.PI) * domeH;
+          g.lineTo(cx, cy);
+        }
+        g.lineTo(x + us * 0.85 + wobble, domeY);
+        g.closePath();
+        g.fillPath();
+
+        g.fillStyle(0xe4a0a8, 0.6);
+        g.beginPath();
+        g.moveTo(x - us * 0.6 + wobble, domeY);
+        for (let i = 1; i < 16; i++) {
+          const t = i / 16;
+          const cx = x - us * 0.6 + wobble + t * us * 1.2;
+          const cy = domeY - Math.sin(t * Math.PI) * domeH * 0.6;
+          g.lineTo(cx, cy);
+        }
+        g.lineTo(x + us * 0.6 + wobble, domeY);
+        g.closePath();
+        g.fillPath();
+
+        g.lineStyle(1.5, 0xc06070, 0.5);
+        for (let i = 0; i < 7; i++) {
+          const t = (i + 1) / 8;
+          const ribX = x - us * 0.85 + wobble + t * us * 1.7;
+          const ribY = domeY - Math.sin(t * Math.PI) * domeH;
+          g.beginPath(); g.moveTo(x + wobble * 0.5, domeY); g.lineTo(ribX, ribY); g.strokePath();
+        }
+
+        g.lineStyle(2, 0xb06878, 0.6);
+        g.beginPath();
+        g.moveTo(x - us * 0.85 + wobble, domeY);
+        for (let i = 1; i <= 20; i++) {
+          const t = i / 20;
+          g.lineTo(x - us * 0.85 + wobble + t * us * 1.7, domeY - Math.sin(t * Math.PI) * domeH);
+        }
+        g.strokePath();
       }
     }
 
