@@ -29,7 +29,8 @@ interface Platform { x: number; y: number; width: number; height: number; bounce
 interface Acorn { x: number; y: number; collected: boolean; bobOffset: number; rotation: number; }
 interface GP { x: number; y: number; vx: number; vy: number; life: number; maxLife: number; size: number; color: number; }
 interface Firefly { x: number; y: number; baseY: number; phase: number; speed: number; brightness: number; size: number; }
-interface WindGust { x: number; width: number; strength: number; speed: number; active: boolean; phase: number; streaks: { y: number; len: number; offset: number; wave: number }[]; }
+type GustDir = 'headwind' | 'tailwind' | 'updraft' | 'downdraft';
+interface WindGust { x: number; width: number; strength: number; speed: number; active: boolean; phase: number; dir: GustDir; streaks: { y: number; len: number; offset: number; wave: number }[]; }
 
 export class ForestSpiritScene extends Phaser.Scene {
   private gfx!: Phaser.GameObjects.Graphics;
@@ -242,7 +243,13 @@ export class ForestSpiritScene extends Phaser.Scene {
     for (let i = 0; i < 8 + Math.floor(Math.random() * 6); i++) {
       streaks.push({ y: 30 + Math.random() * (this.scale.height - 60), len: 40 + Math.random() * 80, offset: Math.random() * width, wave: Math.random() * Math.PI * 2 });
     }
-    return { x: W + 300 + Math.random() * 200, width, strength, speed: 5 + difficulty * 3, active: false, phase: 0, streaks };
+    const roll = Math.random();
+    let dir: GustDir;
+    if (roll < 0.4) dir = 'headwind';
+    else if (roll < 0.65) dir = 'tailwind';
+    else if (roll < 0.85) dir = 'updraft';
+    else dir = 'downdraft';
+    return { x: W + 300 + Math.random() * 200, width, strength, speed: 5 + difficulty * 3, active: false, phase: 0, dir, streaks };
   }
 
   private spawn(x: number, y: number, type: 'bounce' | 'collect' | 'leaf') {
@@ -346,22 +353,61 @@ export class ForestSpiritScene extends Phaser.Scene {
         }
 
         if (this.posX >= gustLeft && this.posX <= gustRight) {
-          const force = gu.strength;
-          if (this.umbrellaOpen > 0.3) {
-            this.velY -= (6 + force * 4) * dt * 60 * this.umbrellaOpen;
-            this.posX -= (3 + force * 2.5) * dt * 60;
-            this.shake = Math.max(this.shake, force * 2);
-          } else {
-            this.velY += (1.5 + force) * dt * 60;
-            this.posX -= (0.8 + force * 0.5) * dt * 60;
+          const f = gu.strength;
+          const f60 = dt * 60;
+          const umb = this.umbrellaOpen > 0.3;
+          switch (gu.dir) {
+            case 'headwind':
+              if (umb) {
+                this.velY -= (6 + f * 4) * f60 * this.umbrellaOpen;
+                this.posX -= (3 + f * 2.5) * f60;
+                this.shake = Math.max(this.shake, f * 2);
+              } else {
+                this.velY += (1.5 + f) * f60;
+                this.posX -= (0.8 + f * 0.5) * f60;
+              }
+              break;
+            case 'tailwind':
+              if (umb) {
+                this.velY -= (3 + f * 2) * f60 * this.umbrellaOpen;
+                this.posX += (4 + f * 3) * f60;
+                this.shake = Math.max(this.shake, f * 1.5);
+              } else {
+                this.posX += (1.5 + f) * f60;
+              }
+              break;
+            case 'updraft':
+              if (umb) {
+                this.velY -= (8 + f * 5) * f60 * this.umbrellaOpen;
+                this.shake = Math.max(this.shake, f * 2.5);
+              } else {
+                this.velY -= (2 + f * 1.5) * f60;
+              }
+              break;
+            case 'downdraft':
+              if (umb) {
+                this.velY += (5 + f * 3) * f60;
+                this.posX -= (1.5 + f) * f60;
+                this.shake = Math.max(this.shake, f * 2);
+              } else {
+                this.velY += (3 + f * 2) * f60;
+              }
+              break;
           }
-          this.posX = Math.max(50, this.posX);
+          this.posX = Math.max(50, Math.min(this.posX, this.scale.width * 0.6));
         }
       }
       this.gusts = this.gusts.filter(gu => gu.x + gu.width > -100);
       if (!anyGustNearby && this.gustWarningActive) {
         this.sound_mgr.stopWindGust();
         this.gustWarningActive = false;
+      }
+
+      const defaultX = 150;
+      if (this.posX < defaultX) {
+        this.posX += (defaultX - this.posX) * 0.02 * dt * 60;
+      } else if (this.posX > defaultX + 100) {
+        this.posX += (defaultX - this.posX) * 0.015 * dt * 60;
       }
 
       for (const f of this.fireflies) {
@@ -557,21 +603,33 @@ export class ForestSpiritScene extends Phaser.Scene {
       const distFromCenter = Math.abs(centerX - W / 2);
       const alpha = Math.max(0.05, 0.35 - distFromCenter / (W * 1.2));
 
-      g.fillStyle(0xc8dce6, alpha * 0.3);
+      const isVert = gu.dir === 'updraft' || gu.dir === 'downdraft';
+      const tint = gu.dir === 'tailwind' ? 0xc8e6d0 : gu.dir === 'updraft' ? 0xe6dcc8 : gu.dir === 'downdraft' ? 0xc8c8e6 : 0xc8dce6;
+
+      g.fillStyle(tint, alpha * 0.3);
       g.fillRect(gu.x + sx, sy, gu.width, H);
 
       for (const s of gu.streaks) {
         const streakX = gu.x + s.offset + sx;
         const waveY = s.y + Math.sin(gu.phase + s.wave) * 12 + sy;
         const a = alpha * (0.4 + Math.sin(gu.phase * 2 + s.wave) * 0.3);
-
-        g.lineStyle(1.5, 0xd0e8f0, a);
-        g.beginPath();
         const len = s.len + Math.sin(gu.phase + s.wave) * 15;
-        g.moveTo(streakX, waveY);
-        g.lineTo(streakX - len * 0.3, waveY + Math.sin(gu.phase * 1.5 + s.wave) * 6);
-        g.lineTo(streakX - len * 0.7, waveY + Math.sin(gu.phase * 2 + s.wave) * 4);
-        g.lineTo(streakX - len, waveY);
+
+        g.lineStyle(1.5, tint, a + 0.1);
+        g.beginPath();
+        if (isVert) {
+          const dirMul = gu.dir === 'updraft' ? -1 : 1;
+          g.moveTo(streakX, waveY);
+          g.lineTo(streakX + Math.sin(gu.phase * 1.5 + s.wave) * 6, waveY + len * 0.3 * dirMul);
+          g.lineTo(streakX + Math.sin(gu.phase * 2 + s.wave) * 4, waveY + len * 0.7 * dirMul);
+          g.lineTo(streakX, waveY + len * dirMul);
+        } else {
+          const dirMul = gu.dir === 'tailwind' ? 1 : -1;
+          g.moveTo(streakX, waveY);
+          g.lineTo(streakX + len * 0.3 * dirMul, waveY + Math.sin(gu.phase * 1.5 + s.wave) * 6);
+          g.lineTo(streakX + len * 0.7 * dirMul, waveY + Math.sin(gu.phase * 2 + s.wave) * 4);
+          g.lineTo(streakX + len * dirMul, waveY);
+        }
         g.strokePath();
       }
 

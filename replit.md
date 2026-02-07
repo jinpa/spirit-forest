@@ -27,14 +27,18 @@ The game is fully functional with all core mechanics implemented:
   - All game logic freezes (physics, animations, scoring)
   - Resume: Press ESC or click Resume
   - Restart: Press R or click Restart (starts fresh run immediately)
-- **Wind Gusts**: Progressive difficulty mechanic
+- **Wind Gusts**: Progressive difficulty mechanic with varied directions
   - Start appearing after distance 1500
   - Frequency increases from every 8-12s down to 4-8s as distance grows
   - Strength scales from 0.4 to 1.0 based on distance (caps at 15000)
-  - Umbrella open: gust catches umbrella like a sail, strong upward lift + backward knockback
-  - Umbrella closed: spirit is aerodynamic, moderate downward push + less knockback
-  - Visual: semi-transparent column with wavy streaks and floating leaf particles
+  - **Four gust types** with different visual tints and physics:
+    - Headwind (40%): pushes back; umbrella open = upward lift + strong knockback, closed = downward push + mild knockback
+    - Tailwind (25%): pushes forward; umbrella open = lift + forward boost, closed = mild forward push
+    - Updraft (20%): pushes up; umbrella open = very strong lift, closed = moderate lift
+    - Downdraft (15%): pushes down; umbrella open = strong downward push + knockback, closed = moderate downward push
+  - Visual: semi-transparent column with directional wavy streaks and floating leaf particles; tint varies by type (blue=headwind, green=tailwind, warm=updraft, purple=downdraft)
   - Sound: warning whoosh builds as gust approaches (within 400px), volume scales with proximity
+  - **Forward drift recovery**: spirit gradually returns to default X position after being knocked back or forward, preventing permanent edge-trapping
 
 ## Sound System
 - **SoundManager** (`client/src/game/SoundManager.ts`) - Web Audio API synthesizer
