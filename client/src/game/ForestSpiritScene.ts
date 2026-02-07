@@ -63,6 +63,7 @@ export class ForestSpiritScene extends Phaser.Scene {
   private gusts: WindGust[] = [];
   private gustTimer = 0;
   private gustWarningActive = false;
+  private inGust = false;
 
   private titleText!: Phaser.GameObjects.Text;
   private instrText1!: Phaser.GameObjects.Text;
@@ -125,7 +126,7 @@ export class ForestSpiritScene extends Phaser.Scene {
     this.soundTogglePause = this.add.text(this.scale.width / 2, this.scale.height / 2 + 100, '', soundStyle)
       .setOrigin(0.5).setDepth(30).setVisible(false).setInteractive({ useHandCursor: true });
 
-    this.add.text(this.scale.width - 20, this.scale.height - 20, 'v1.0.1', { ...fontBase, fontSize: '14px', color: '#a0b8c0', shadow })
+    this.add.text(this.scale.width - 20, this.scale.height - 20, 'v1.0.2', { ...fontBase, fontSize: '14px', color: '#a0b8c0', shadow })
       .setOrigin(1, 1).setDepth(10);
 
     this.soundToggleStart.on('pointerdown', (p: Phaser.Input.Pointer) => {
@@ -336,6 +337,7 @@ export class ForestSpiritScene extends Phaser.Scene {
       }
 
       let anyGustNearby = false;
+      this.inGust = false;
       for (const gu of this.gusts) {
         gu.x -= gu.speed;
         gu.phase += dt * 3;
@@ -356,6 +358,7 @@ export class ForestSpiritScene extends Phaser.Scene {
         }
 
         if (this.posX >= gustLeft && this.posX <= gustRight) {
+          this.inGust = true;
           const f = gu.strength;
           const f60 = dt * 60;
           const umb = this.umbrellaOpen > 0.3;
@@ -655,24 +658,29 @@ export class ForestSpiritScene extends Phaser.Scene {
     const breathe = Math.sin(this.t * 2) * 2;
 
     if (uo > 0.1) {
+      const flipped = this.inGust && uo > 0.3;
       const uy = y - (45 + uo * 15) * sq;
       const us = 35 + uo * 25;
+      const domeY = flipped ? uy + us * 0.6 * uo : uy;
+      const flipDir = flipped ? -1 : 1;
 
       g.lineStyle(4, 0x8b5a4a, 1);
-      g.beginPath(); g.moveTo(x, uy + us * 0.8); g.lineTo(x, uy - 5); g.strokePath();
+      g.beginPath(); g.moveTo(x, uy + us * 0.8); g.lineTo(x, domeY - 5 * flipDir); g.strokePath();
 
       g.fillStyle(0xe4a0a8, 1);
-      g.fillEllipse(x, uy, us * 2, us * 0.8 * uo);
+      g.fillEllipse(x, domeY, us * 2, us * 0.8 * uo);
       g.fillStyle(0xd47a8a, 0.5);
-      g.fillEllipse(x, uy, us * 1.6, us * 0.6 * uo);
+      g.fillEllipse(x, domeY, us * 1.6, us * 0.6 * uo);
 
       g.lineStyle(2, 0xc06070, 1);
       for (let i = 0; i < 8; i++) {
-        const a = Math.PI + (Math.PI * i) / 7;
-        g.beginPath(); g.moveTo(x, uy); g.lineTo(x + Math.cos(a) * us, uy + Math.sin(a) * us * 0.4 * uo); g.strokePath();
+        const a = (flipped ? 0 : Math.PI) + (Math.PI * i) / 7;
+        g.beginPath(); g.moveTo(x, domeY); g.lineTo(x + Math.cos(a) * us, domeY + Math.sin(a) * us * 0.4 * uo); g.strokePath();
       }
-      g.fillStyle(0xffffff, 0.2);
-      g.fillEllipse(x - us * 0.3, uy - us * 0.15 * uo, us * 0.5, us * 0.2 * uo);
+      if (!flipped) {
+        g.fillStyle(0xffffff, 0.2);
+        g.fillEllipse(x - us * 0.3, uy - us * 0.15 * uo, us * 0.5, us * 0.2 * uo);
+      }
     }
 
     g.fillStyle(0xa0b0a0, 1);
