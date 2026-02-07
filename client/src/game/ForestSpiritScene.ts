@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { SoundManager } from './SoundManager';
 
 const GRAVITY = 0.55;
 const LIFT_FORCE = -0.45;
@@ -54,6 +55,9 @@ export class ForestSpiritScene extends Phaser.Scene {
   private showInst = true;
   private isPaused = false;
   private pauseSelection = 0;
+  private sound_mgr = new SoundManager();
+  private wasHolding = false;
+  private windChimeTimer = 0;
 
   private titleText!: Phaser.GameObjects.Text;
   private instrText1!: Phaser.GameObjects.Text;
@@ -72,6 +76,8 @@ export class ForestSpiritScene extends Phaser.Scene {
   private restartText!: Phaser.GameObjects.Text;
   private pauseHintText!: Phaser.GameObjects.Text;
   private pauseBtn!: Phaser.GameObjects.Graphics;
+  private soundToggleStart!: Phaser.GameObjects.Text;
+  private soundTogglePause!: Phaser.GameObjects.Text;
 
   constructor() {
     super({ key: 'ForestSpiritScene' });
@@ -108,6 +114,21 @@ export class ForestSpiritScene extends Phaser.Scene {
       Phaser.Geom.Rectangle.Contains
     );
 
+    const soundStyle = { ...fontBase, fontSize: '22px', color: '#a0c8d0' };
+    this.soundToggleStart = this.add.text(this.scale.width / 2, this.scale.height / 2 + 175, '', soundStyle)
+      .setOrigin(0.5).setDepth(20).setInteractive({ useHandCursor: true });
+    this.soundTogglePause = this.add.text(this.scale.width / 2, this.scale.height / 2 + 100, '', soundStyle)
+      .setOrigin(0.5).setDepth(30).setVisible(false).setInteractive({ useHandCursor: true });
+
+    this.soundToggleStart.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      p.event.stopPropagation();
+      this.sound_mgr.enabled = !this.sound_mgr.enabled;
+    });
+    this.soundTogglePause.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      p.event.stopPropagation();
+      this.sound_mgr.enabled = !this.sound_mgr.enabled;
+    });
+
     this.resumeText.on('pointerdown', () => { this.togglePause(); });
     this.restartText.on('pointerdown', () => { this.doRestart(); });
     this.pauseBtn.on('pointerdown', (p: Phaser.Input.Pointer) => {
@@ -131,6 +152,9 @@ export class ForestSpiritScene extends Phaser.Scene {
     this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
       this.repositionUI(gameSize.width, gameSize.height);
     });
+
+    this.events.on('shutdown', () => { this.sound_mgr.destroy(); });
+    this.events.on('destroy', () => { this.sound_mgr.destroy(); });
   }
 
   private repositionUI(w: number, h: number) {
@@ -146,6 +170,8 @@ export class ForestSpiritScene extends Phaser.Scene {
     this.resumeText.setPosition(w / 2, h / 2);
     this.restartText.setPosition(w / 2, h / 2 + 55);
     this.pauseHintText.setPosition(w / 2, h / 2 + 130);
+    this.soundToggleStart.setPosition(w / 2, h / 2 + 175);
+    this.soundTogglePause.setPosition(w / 2, h / 2 + 100);
   }
 
   private doHold() {
@@ -160,10 +186,16 @@ export class ForestSpiritScene extends Phaser.Scene {
     this.isPaused = !this.isPaused;
     this.isHolding = false;
     this.pauseSelection = 0;
+    if (this.isPaused) {
+      this.sound_mgr.stopUmbrella();
+      this.wasHolding = false;
+    }
   }
 
   private doRestart() {
     this.isPaused = false;
+    this.sound_mgr.stopUmbrella();
+    this.wasHolding = false;
     if (this.score > this.bestScore) this.bestScore = this.score;
     this.initGame();
     this.started = true;
@@ -217,6 +249,10 @@ export class ForestSpiritScene extends Phaser.Scene {
         ? Math.min(1, this.umbrellaOpen + UMBRELLA_OPEN_SPEED)
         : Math.max(0, this.umbrellaOpen - UMBRELLA_CLOSE_SPEED);
 
+      if (this.isHolding && !this.wasHolding) this.sound_mgr.startUmbrella();
+      if (!this.isHolding && this.wasHolding) this.sound_mgr.stopUmbrella();
+      this.wasHolding = this.isHolding;
+
       const eg = GRAVITY * (1 - this.umbrellaOpen * 0.7);
       const lift = this.isHolding ? LIFT_FORCE * this.umbrellaOpen : 0;
       this.velY = Phaser.Math.Clamp(this.velY + eg + lift, MAX_LIFT_SPEED, MAX_FALL_SPEED);
@@ -234,6 +270,7 @@ export class ForestSpiritScene extends Phaser.Scene {
           this.squish = 0.7;
           this.posY = pTop - cR;
           this.spawn(this.posX, pTop, 'bounce');
+          this.sound_mgr.playBounce();
         }
       }
 
@@ -249,7 +286,14 @@ export class ForestSpiritScene extends Phaser.Scene {
           this.score += 10 * Math.min(this.combo, 5);
           this.shake = Math.min(1 + this.combo * 0.3, 3);
           this.spawn(rx, ac.y, 'collect');
+          this.sound_mgr.playCollect(this.combo);
         }
+      }
+
+      this.windChimeTimer -= dt;
+      if (this.windChimeTimer <= 0) {
+        this.sound_mgr.playWindChime();
+        this.windChimeTimer = 4 + Math.random() * 6;
       }
 
       for (const f of this.fireflies) {
@@ -266,7 +310,13 @@ export class ForestSpiritScene extends Phaser.Scene {
       this.particles = this.particles.filter(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.1; p.life -= dt / p.maxLife; return p.life > 0; });
       if (Math.random() < 0.005) this.spawn(this.posX + 100 + Math.random() * 200, 50 + Math.random() * 100, 'leaf');
 
-      if (this.posY > H + 50) { this.isResetting = true; this.resetProgress = 0; }
+      if (this.posY > H + 50) {
+        this.isResetting = true;
+        this.resetProgress = 0;
+        this.sound_mgr.stopUmbrella();
+        this.sound_mgr.playSink();
+        this.wasHolding = false;
+      }
     }
 
     if (this.isResetting) {
@@ -579,6 +629,8 @@ export class ForestSpiritScene extends Phaser.Scene {
     this.instrText2.setVisible(showInst);
     this.instrText3.setVisible(showInst);
     this.startText.setVisible(showInst);
+    const soundLabel = this.sound_mgr.enabled ? 'Sound: ON' : 'Sound: OFF';
+    this.soundToggleStart.setText(soundLabel).setVisible(showInst);
     if (showInst) {
       this.startText.setAlpha(0.7 + Math.sin(this.t * 3) * 0.3);
     }
@@ -621,9 +673,10 @@ export class ForestSpiritScene extends Phaser.Scene {
       this.pauseOverlay.strokeRoundedRect(cx - 160, cy - 120, 320, 280, 16);
 
       this.pauseTitleText.setPosition(cx, cy - 80).setVisible(true);
-      this.resumeText.setPosition(cx, cy).setVisible(true);
-      this.restartText.setPosition(cx, cy + 55).setVisible(true);
-      this.pauseHintText.setPosition(cx, cy + 130).setVisible(true);
+      this.resumeText.setPosition(cx, cy - 10).setVisible(true);
+      this.restartText.setPosition(cx, cy + 45).setVisible(true);
+      this.soundTogglePause.setPosition(cx, cy + 95).setText(soundLabel).setVisible(true);
+      this.pauseHintText.setPosition(cx, cy + 140).setVisible(true);
 
       const pulse = 0.7 + Math.sin(Date.now() * 0.003) * 0.3;
       this.pauseHintText.setAlpha(pulse);
@@ -632,6 +685,7 @@ export class ForestSpiritScene extends Phaser.Scene {
       this.resumeText.setVisible(false);
       this.restartText.setVisible(false);
       this.pauseHintText.setVisible(false);
+      this.soundTogglePause.setVisible(false);
     }
   }
 }

@@ -12,6 +12,7 @@ The game is fully functional with all core mechanics implemented:
 - Peaceful reset animation
 - Fireflies with smooth, gentle glow
 - Pause/restart controls
+- Synthesized wind-chime sound effects with toggle
 
 ## Core Mechanics
 - **Single Input**: Hold Spacebar or Mouse Click to open umbrella
@@ -26,15 +27,27 @@ The game is fully functional with all core mechanics implemented:
   - Resume: Press ESC or click Resume
   - Restart: Press R or click Restart (starts fresh run immediately)
 
+## Sound System
+- **SoundManager** (`client/src/game/SoundManager.ts`) - Web Audio API synthesizer
+  - Bounce: Wind-chime tones (sine waves with harmonics + noise burst)
+  - Collect: Shimmer chimes that rise in pitch with combo count
+  - Umbrella: Gentle continuous hum with LFO vibrato while open
+  - Sink: Descending tone when falling off screen
+  - Ambient: Random wind chime notes every 4-10 seconds
+- **Toggle**: Clickable "Sound: ON/OFF" on start screen and pause menu
+- **Default**: Sound enabled (ON)
+
 ## Project Architecture
 
 ### Frontend (client/)
 - `client/src/pages/Game.tsx` - React wrapper that initializes and manages the Phaser game instance
 - `client/src/game/ForestSpiritScene.ts` - Main Phaser scene with all game logic, physics, rendering
+- `client/src/game/SoundManager.ts` - Web Audio API sound synthesis engine
 - `client/src/App.tsx` - App router pointing to the game
 
 ### Technology
 - **Phaser 3** (v3.90.0) - Game framework handling rendering, input, and game loop
+- **Web Audio API** - Procedural sound synthesis (no audio files)
 - **WebGL** rendering with 60fps target
 - **React** wrapper for lifecycle management
 
@@ -47,6 +60,7 @@ The game is fully functional with all core mechanics implemented:
 - Totoro-style forest spirit with umbrella
 - Phaser Text objects for UI (score, distance, combo, instructions)
 - Pause/restart menu with ESC key and clickable pause button
+- Synthesized wind-chime sound effects with on/off toggle
 
 ## Design Tokens
 The game uses a soft watercolor palette:
