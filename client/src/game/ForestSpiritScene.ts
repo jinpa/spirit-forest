@@ -348,11 +348,12 @@ export class ForestSpiritScene extends Phaser.Scene {
         if (this.posX >= gustLeft && this.posX <= gustRight) {
           const force = gu.strength;
           if (this.umbrellaOpen > 0.3) {
-            this.velY -= (2.5 + force * 2) * dt * 60 * this.umbrellaOpen;
-            this.posX -= (1.5 + force) * dt * 60;
+            this.velY -= (6 + force * 4) * dt * 60 * this.umbrellaOpen;
+            this.posX -= (3 + force * 2.5) * dt * 60;
+            this.shake = Math.max(this.shake, force * 2);
           } else {
-            this.velY += (1.2 + force * 0.8) * dt * 60;
-            this.posX -= (0.5 + force * 0.3) * dt * 60;
+            this.velY += (1.5 + force) * dt * 60;
+            this.posX -= (0.8 + force * 0.5) * dt * 60;
           }
           this.posX = Math.max(50, this.posX);
         }
