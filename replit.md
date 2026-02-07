@@ -11,6 +11,7 @@ The game is fully functional with all core mechanics implemented:
 - Parallax scrolling backgrounds with floating clouds
 - Peaceful reset animation
 - Fireflies with smooth, gentle glow
+- Pause/restart controls
 
 ## Core Mechanics
 - **Single Input**: Hold Spacebar or Mouse Click to open umbrella
@@ -19,6 +20,11 @@ The game is fully functional with all core mechanics implemented:
 - **Bouncing**: Landing on tree canopies creates a springy bounce based on falling velocity
 - **Scoring**: Collect acorns for points with combo multiplier system
 - **Reset**: Falling below screen triggers a peaceful "resting in bushes" animation
+- **Pause**: Press ESC or click the pause button (top-right) during gameplay
+  - Shows overlay with Resume and Restart options
+  - All game logic freezes (physics, animations, scoring)
+  - Resume: Press ESC or click Resume
+  - Restart: Press R or click Restart (starts fresh run immediately)
 
 ## Project Architecture
 
@@ -40,6 +46,7 @@ The game is fully functional with all core mechanics implemented:
 - Squishy, organic character animations
 - Totoro-style forest spirit with umbrella
 - Phaser Text objects for UI (score, distance, combo, instructions)
+- Pause/restart menu with ESC key and clickable pause button
 
 ## Design Tokens
 The game uses a soft watercolor palette:
@@ -60,5 +67,7 @@ The game uses a soft watercolor palette:
 The game runs on port 5000 via the "Start application" workflow.
 
 ## Controls
-- **Desktop**: Hold Spacebar or Left Mouse Button
+- **Desktop**: Hold Spacebar or Left Mouse Button to float
+- **Pause**: Press ESC key or click pause button (top-right corner)
+- **Restart**: Press R while paused, or click Restart in pause menu
 - **Mobile**: Touch and hold screen

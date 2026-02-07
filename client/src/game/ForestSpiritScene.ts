@@ -52,6 +52,8 @@ export class ForestSpiritScene extends Phaser.Scene {
   private shake = 0;
   private t = 0;
   private showInst = true;
+  private isPaused = false;
+  private pauseSelection = 0;
 
   private titleText!: Phaser.GameObjects.Text;
   private instrText1!: Phaser.GameObjects.Text;
@@ -64,6 +66,12 @@ export class ForestSpiritScene extends Phaser.Scene {
   private comboText!: Phaser.GameObjects.Text;
   private resetText!: Phaser.GameObjects.Text;
   private overlay!: Phaser.GameObjects.Graphics;
+  private pauseOverlay!: Phaser.GameObjects.Graphics;
+  private pauseTitleText!: Phaser.GameObjects.Text;
+  private resumeText!: Phaser.GameObjects.Text;
+  private restartText!: Phaser.GameObjects.Text;
+  private pauseHintText!: Phaser.GameObjects.Text;
+  private pauseBtn!: Phaser.GameObjects.Graphics;
 
   constructor() {
     super({ key: 'ForestSpiritScene' });
@@ -78,7 +86,7 @@ export class ForestSpiritScene extends Phaser.Scene {
 
     this.scoreText = this.add.text(20, 20, '', { ...fontBase, fontSize: '28px', fontStyle: 'bold', shadow }).setDepth(10);
     this.distText = this.add.text(20, 55, '', { ...fontBase, fontSize: '28px', fontStyle: 'bold', shadow }).setDepth(10);
-    this.bestText = this.add.text(this.scale.width - 20, 20, '', { ...fontBase, fontSize: '28px', fontStyle: 'bold', color: '#ffd700', shadow }).setOrigin(1, 0).setDepth(10);
+    this.bestText = this.add.text(this.scale.width - 65, 20, '', { ...fontBase, fontSize: '28px', fontStyle: 'bold', color: '#ffd700', shadow }).setOrigin(1, 0).setDepth(10);
     this.comboText = this.add.text(this.scale.width / 2, 100, '', { ...fontBase, fontSize: '36px', fontStyle: 'bold', shadow, align: 'center' }).setOrigin(0.5).setDepth(10);
 
     this.titleText = this.add.text(this.scale.width / 2, this.scale.height / 2 - 80, 'Forest Spirit Journey', { ...fontBase, fontSize: '42px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(20);
@@ -89,12 +97,36 @@ export class ForestSpiritScene extends Phaser.Scene {
 
     this.resetText = this.add.text(this.scale.width / 2, this.scale.height - 80, '', { ...fontBase, fontSize: '24px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(20).setVisible(false);
 
+    this.pauseOverlay = this.add.graphics().setDepth(25);
+    this.pauseTitleText = this.add.text(this.scale.width / 2, this.scale.height / 2 - 80, 'Paused', { ...fontBase, fontSize: '48px', fontStyle: 'bold', shadow }).setOrigin(0.5).setDepth(30).setVisible(false);
+    this.resumeText = this.add.text(this.scale.width / 2, this.scale.height / 2, 'Resume', { ...fontBase, fontSize: '32px', shadow }).setOrigin(0.5).setDepth(30).setVisible(false).setInteractive({ useHandCursor: true });
+    this.restartText = this.add.text(this.scale.width / 2, this.scale.height / 2 + 55, 'Restart', { ...fontBase, fontSize: '32px', shadow }).setOrigin(0.5).setDepth(30).setVisible(false).setInteractive({ useHandCursor: true });
+    this.pauseHintText = this.add.text(this.scale.width / 2, this.scale.height / 2 + 130, 'Press ESC to resume', { ...fontBase, fontSize: '20px', color: '#a0b8c0' }).setOrigin(0.5).setDepth(30).setVisible(false);
+
+    this.pauseBtn = this.add.graphics().setDepth(12).setInteractive(
+      new Phaser.Geom.Rectangle(0, 0, 40, 40),
+      Phaser.Geom.Rectangle.Contains
+    );
+
+    this.resumeText.on('pointerdown', () => { this.togglePause(); });
+    this.restartText.on('pointerdown', () => { this.doRestart(); });
+    this.pauseBtn.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      p.event.stopPropagation();
+      if (this.started && !this.isResetting && !this.showInst) this.togglePause();
+    });
+
     this.initGame();
 
-    this.input.keyboard!.on('keydown-SPACE', (e: KeyboardEvent) => { e.preventDefault(); this.doHold(); });
-    this.input.keyboard!.on('keyup-SPACE', () => { this.isHolding = false; });
-    this.input.on('pointerdown', () => { this.doHold(); });
-    this.input.on('pointerup', () => { this.isHolding = false; });
+    this.input.keyboard!.on('keydown-SPACE', (e: KeyboardEvent) => { e.preventDefault(); if (!this.isPaused) this.doHold(); });
+    this.input.keyboard!.on('keyup-SPACE', () => { if (!this.isPaused) this.isHolding = false; });
+    this.input.keyboard!.on('keydown-ESC', () => {
+      if (this.started && !this.isResetting && !this.showInst) this.togglePause();
+    });
+    this.input.keyboard!.on('keydown-R', () => {
+      if (this.isPaused) this.doRestart();
+    });
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => { if (!this.isPaused) this.doHold(); });
+    this.input.on('pointerup', () => { if (!this.isPaused) this.isHolding = false; });
 
     this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
       this.repositionUI(gameSize.width, gameSize.height);
@@ -102,7 +134,7 @@ export class ForestSpiritScene extends Phaser.Scene {
   }
 
   private repositionUI(w: number, h: number) {
-    this.bestText.setX(w - 20);
+    this.bestText.setX(w - 65);
     this.comboText.setX(w / 2);
     this.titleText.setPosition(w / 2, h / 2 - 80);
     this.instrText1.setPosition(w / 2, h / 2 - 20);
@@ -110,6 +142,10 @@ export class ForestSpiritScene extends Phaser.Scene {
     this.instrText3.setPosition(w / 2, h / 2 + 60);
     this.startText.setPosition(w / 2, h / 2 + 130);
     this.resetText.setPosition(w / 2, h - 80);
+    this.pauseTitleText.setPosition(w / 2, h / 2 - 80);
+    this.resumeText.setPosition(w / 2, h / 2);
+    this.restartText.setPosition(w / 2, h / 2 + 55);
+    this.pauseHintText.setPosition(w / 2, h / 2 + 130);
   }
 
   private doHold() {
@@ -118,6 +154,20 @@ export class ForestSpiritScene extends Phaser.Scene {
       this.showInst = false;
     }
     this.isHolding = true;
+  }
+
+  private togglePause() {
+    this.isPaused = !this.isPaused;
+    this.isHolding = false;
+    this.pauseSelection = 0;
+  }
+
+  private doRestart() {
+    this.isPaused = false;
+    if (this.score > this.bestScore) this.bestScore = this.score;
+    this.initGame();
+    this.started = true;
+    this.showInst = false;
   }
 
   private initGame() {
@@ -155,11 +205,14 @@ export class ForestSpiritScene extends Phaser.Scene {
 
   update(_time: number, delta: number) {
     const dt = Math.min(delta / 1000, 0.1);
-    this.t += dt;
     const W = this.scale.width;
     const H = this.scale.height;
 
-    if (this.started && !this.isResetting) {
+    if (!this.isPaused) {
+      this.t += dt;
+    }
+
+    if (this.started && !this.isResetting && !this.isPaused) {
       this.umbrellaOpen = this.isHolding
         ? Math.min(1, this.umbrellaOpen + UMBRELLA_OPEN_SPEED)
         : Math.max(0, this.umbrellaOpen - UMBRELLA_CLOSE_SPEED);
@@ -542,6 +595,43 @@ export class ForestSpiritScene extends Phaser.Scene {
       }
     } else {
       this.resetText.setVisible(false).setAlpha(1);
+    }
+
+    this.pauseOverlay.clear();
+    this.pauseBtn.clear();
+    const showPauseBtn = this.started && !this.isResetting && !this.showInst && !this.isPaused;
+    if (showPauseBtn) {
+      const bx = W - 55, by = 22;
+      this.pauseBtn.setPosition(bx, by);
+      this.pauseBtn.fillStyle(0x000000, 0.3);
+      this.pauseBtn.fillRoundedRect(0, 0, 40, 40, 8);
+      this.pauseBtn.fillStyle(0xf0f4f0, 0.9);
+      this.pauseBtn.fillRect(11, 10, 6, 20);
+      this.pauseBtn.fillRect(23, 10, 6, 20);
+    }
+
+    if (this.isPaused) {
+      this.pauseOverlay.fillStyle(0x0a1a2a, 0.65);
+      this.pauseOverlay.fillRect(0, 0, W, H);
+
+      const cx = W / 2, cy = H / 2;
+      this.pauseOverlay.fillStyle(0x1a3a4a, 0.85);
+      this.pauseOverlay.fillRoundedRect(cx - 160, cy - 120, 320, 280, 16);
+      this.pauseOverlay.lineStyle(2, 0x5a8a9a, 0.5);
+      this.pauseOverlay.strokeRoundedRect(cx - 160, cy - 120, 320, 280, 16);
+
+      this.pauseTitleText.setPosition(cx, cy - 80).setVisible(true);
+      this.resumeText.setPosition(cx, cy).setVisible(true);
+      this.restartText.setPosition(cx, cy + 55).setVisible(true);
+      this.pauseHintText.setPosition(cx, cy + 130).setVisible(true);
+
+      const pulse = 0.7 + Math.sin(Date.now() * 0.003) * 0.3;
+      this.pauseHintText.setAlpha(pulse);
+    } else {
+      this.pauseTitleText.setVisible(false);
+      this.resumeText.setVisible(false);
+      this.restartText.setVisible(false);
+      this.pauseHintText.setVisible(false);
     }
   }
 }
