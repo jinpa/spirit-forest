@@ -125,6 +125,9 @@ export class ForestSpiritScene extends Phaser.Scene {
     this.soundTogglePause = this.add.text(this.scale.width / 2, this.scale.height / 2 + 100, '', soundStyle)
       .setOrigin(0.5).setDepth(30).setVisible(false).setInteractive({ useHandCursor: true });
 
+    this.add.text(this.scale.width - 20, this.scale.height - 20, 'v1.0.1', { ...fontBase, fontSize: '14px', color: '#a0b8c0', shadow })
+      .setOrigin(1, 1).setDepth(10);
+
     this.soundToggleStart.on('pointerdown', (p: Phaser.Input.Pointer) => {
       p.event.stopPropagation();
       this.sound_mgr.enabled = !this.sound_mgr.enabled;
