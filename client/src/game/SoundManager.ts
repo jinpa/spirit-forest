@@ -164,8 +164,95 @@ export class SoundManager {
     }
   }
 
+  private gustOsc: OscillatorNode | null = null;
+  private gustGain: GainNode | null = null;
+  private gustLfo: OscillatorNode | null = null;
+  private gustNoiseSource: AudioBufferSourceNode | null = null;
+  private gustNoiseGain: GainNode | null = null;
+
+  startWindGust(intensity: number) {
+    if (!this.ensure()) return;
+    if (this.gustOsc) return;
+    const c = this.ctx!;
+    const t = c.currentTime;
+
+    this.gustOsc = c.createOscillator();
+    this.gustGain = c.createGain();
+    this.gustOsc.type = 'sine';
+    this.gustOsc.frequency.setValueAtTime(80 + intensity * 40, t);
+    this.gustGain.gain.setValueAtTime(0, t);
+    this.gustGain.gain.linearRampToValueAtTime(0.015 + intensity * 0.01, t + 0.5);
+    this.gustLfo = c.createOscillator();
+    const lfoG = c.createGain();
+    this.gustLfo.type = 'sine';
+    this.gustLfo.frequency.value = 2 + intensity * 3;
+    lfoG.gain.value = 15 + intensity * 10;
+    this.gustLfo.connect(lfoG);
+    lfoG.connect(this.gustOsc.frequency);
+    this.gustLfo.start(t);
+    this.gustOsc.connect(this.gustGain);
+    this.gustGain.connect(c.destination);
+    this.gustOsc.start(t);
+
+    const bufSize = c.sampleRate * 2;
+    const buf = c.createBuffer(1, bufSize, c.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1);
+    this.gustNoiseSource = c.createBufferSource();
+    this.gustNoiseSource.buffer = buf;
+    this.gustNoiseSource.loop = true;
+    this.gustNoiseGain = c.createGain();
+    this.gustNoiseGain.gain.setValueAtTime(0, t);
+    this.gustNoiseGain.gain.linearRampToValueAtTime(0.02 + intensity * 0.015, t + 0.5);
+    const filt = c.createBiquadFilter();
+    filt.type = 'bandpass';
+    filt.frequency.value = 400 + intensity * 200;
+    filt.Q.value = 0.5;
+    this.gustNoiseSource.connect(filt);
+    filt.connect(this.gustNoiseGain);
+    this.gustNoiseGain.connect(c.destination);
+    this.gustNoiseSource.start(t);
+  }
+
+  updateWindGustVolume(proximity: number, intensity: number) {
+    if (!this.gustGain || !this.gustNoiseGain || !this.ctx || this.ctx.state === 'closed') return;
+    const t = this.ctx.currentTime;
+    const vol = proximity * (0.015 + intensity * 0.01);
+    const noiseVol = proximity * (0.02 + intensity * 0.015);
+    this.gustGain.gain.setTargetAtTime(vol, t, 0.05);
+    this.gustNoiseGain.gain.setTargetAtTime(noiseVol, t, 0.05);
+  }
+
+  stopWindGust() {
+    if (!this.gustOsc) return;
+    try {
+      if (this.gustGain && this.ctx && this.ctx.state !== 'closed') {
+        this.gustGain.gain.cancelScheduledValues(this.ctx.currentTime);
+        this.gustGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.1);
+      }
+      if (this.gustNoiseGain && this.ctx && this.ctx.state !== 'closed') {
+        this.gustNoiseGain.gain.cancelScheduledValues(this.ctx.currentTime);
+        this.gustNoiseGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.1);
+      }
+    } catch {}
+    const osc = this.gustOsc;
+    const lfo = this.gustLfo;
+    const noise = this.gustNoiseSource;
+    this.gustOsc = null;
+    this.gustGain = null;
+    this.gustLfo = null;
+    this.gustNoiseSource = null;
+    this.gustNoiseGain = null;
+    setTimeout(() => {
+      try { if (lfo) { lfo.disconnect(); lfo.stop(); } } catch {}
+      try { osc.disconnect(); osc.stop(); } catch {}
+      try { if (noise) { noise.disconnect(); noise.stop(); } } catch {}
+    }, 300);
+  }
+
   destroy() {
     this.stopUmbrella();
+    this.stopWindGust();
     if (this.ctx && this.ctx.state !== 'closed') {
       this.ctx.close().catch(() => {});
     }

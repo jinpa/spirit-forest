@@ -13,6 +13,7 @@ The game is fully functional with all core mechanics implemented:
 - Fireflies with smooth, gentle glow
 - Pause/restart controls
 - Synthesized wind-chime sound effects with toggle
+- Wind gust difficulty mechanic with progressive scaling
 
 ## Core Mechanics
 - **Single Input**: Hold Spacebar or Mouse Click to open umbrella
@@ -26,6 +27,14 @@ The game is fully functional with all core mechanics implemented:
   - All game logic freezes (physics, animations, scoring)
   - Resume: Press ESC or click Resume
   - Restart: Press R or click Restart (starts fresh run immediately)
+- **Wind Gusts**: Progressive difficulty mechanic
+  - Start appearing after distance 1500
+  - Frequency increases from every 8-12s down to 4-8s as distance grows
+  - Strength scales from 0.4 to 1.0 based on distance (caps at 15000)
+  - Umbrella open: gust catches umbrella like a sail, strong upward lift + backward knockback
+  - Umbrella closed: spirit is aerodynamic, moderate downward push + less knockback
+  - Visual: semi-transparent column with wavy streaks and floating leaf particles
+  - Sound: warning whoosh builds as gust approaches (within 400px), volume scales with proximity
 
 ## Sound System
 - **SoundManager** (`client/src/game/SoundManager.ts`) - Web Audio API synthesizer
@@ -34,6 +43,7 @@ The game is fully functional with all core mechanics implemented:
   - Umbrella: Gentle continuous hum with LFO vibrato while open
   - Sink: Descending tone when falling off screen
   - Ambient: Random wind chime notes every 4-10 seconds
+  - Wind Gust: Low sine oscillator + filtered noise whoosh, volume scales with proximity
 - **Toggle**: Clickable "Sound: ON/OFF" on start screen and pause menu
 - **Default**: Sound enabled (ON)
 
@@ -61,6 +71,7 @@ The game is fully functional with all core mechanics implemented:
 - Phaser Text objects for UI (score, distance, combo, instructions)
 - Pause/restart menu with ESC key and clickable pause button
 - Synthesized wind-chime sound effects with on/off toggle
+- Wind gust difficulty system with umbrella-dependent physics
 
 ## Design Tokens
 The game uses a soft watercolor palette:

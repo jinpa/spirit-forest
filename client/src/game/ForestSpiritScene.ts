@@ -29,6 +29,7 @@ interface Platform { x: number; y: number; width: number; height: number; bounce
 interface Acorn { x: number; y: number; collected: boolean; bobOffset: number; rotation: number; }
 interface GP { x: number; y: number; vx: number; vy: number; life: number; maxLife: number; size: number; color: number; }
 interface Firefly { x: number; y: number; baseY: number; phase: number; speed: number; brightness: number; size: number; }
+interface WindGust { x: number; width: number; strength: number; speed: number; active: boolean; phase: number; streaks: { y: number; len: number; offset: number; wave: number }[]; }
 
 export class ForestSpiritScene extends Phaser.Scene {
   private gfx!: Phaser.GameObjects.Graphics;
@@ -58,6 +59,9 @@ export class ForestSpiritScene extends Phaser.Scene {
   private sound_mgr = new SoundManager();
   private wasHolding = false;
   private windChimeTimer = 0;
+  private gusts: WindGust[] = [];
+  private gustTimer = 0;
+  private gustWarningActive = false;
 
   private titleText!: Phaser.GameObjects.Text;
   private instrText1!: Phaser.GameObjects.Text;
@@ -188,6 +192,8 @@ export class ForestSpiritScene extends Phaser.Scene {
     this.pauseSelection = 0;
     if (this.isPaused) {
       this.sound_mgr.stopUmbrella();
+      this.sound_mgr.stopWindGust();
+      this.gustWarningActive = false;
       this.wasHolding = false;
     }
   }
@@ -208,6 +214,8 @@ export class ForestSpiritScene extends Phaser.Scene {
     this.score = 0; this.dist = 0;
     this.isResetting = false; this.resetProgress = 0;
     this.combo = 0; this.comboTimer = 0; this.shake = 0;
+    this.gusts = []; this.gustTimer = 0;
+    this.sound_mgr.stopWindGust(); this.gustWarningActive = false;
     this.platforms = []; this.acorns = []; this.particles = []; this.fireflies = [];
     for (let i = 0; i < 8; i++) this.platforms.push(this.mkPlat(200 + i * 250));
     for (let i = 0; i < 12; i++) this.acorns.push(this.mkAcorn(300 + i * 180 + Math.random() * 100));
@@ -223,6 +231,18 @@ export class ForestSpiritScene extends Phaser.Scene {
   private mkFF(): Firefly {
     const y = 100 + Math.random() * 400;
     return { x: Math.random() * 1200, y, baseY: y, phase: Math.random() * Math.PI * 2, speed: 0.3 + Math.random() * 0.5, brightness: Math.random(), size: 2 + Math.random() * 3 };
+  }
+
+  private mkGust(): WindGust {
+    const W = this.scale.width;
+    const difficulty = Math.min(this.dist / 15000, 1);
+    const strength = 0.4 + difficulty * 0.6;
+    const width = 200 + Math.random() * 150;
+    const streaks: WindGust['streaks'] = [];
+    for (let i = 0; i < 8 + Math.floor(Math.random() * 6); i++) {
+      streaks.push({ y: 30 + Math.random() * (this.scale.height - 60), len: 40 + Math.random() * 80, offset: Math.random() * width, wave: Math.random() * Math.PI * 2 });
+    }
+    return { x: W + 300 + Math.random() * 200, width, strength, speed: 5 + difficulty * 3, active: false, phase: 0, streaks };
   }
 
   private spawn(x: number, y: number, type: 'bounce' | 'collect' | 'leaf') {
@@ -296,6 +316,53 @@ export class ForestSpiritScene extends Phaser.Scene {
         this.windChimeTimer = 4 + Math.random() * 6;
       }
 
+      if (this.dist > 1500) {
+        this.gustTimer -= dt;
+        if (this.gustTimer <= 0 && this.gusts.length === 0) {
+          this.gusts.push(this.mkGust());
+          const difficulty = Math.min(this.dist / 15000, 1);
+          this.gustTimer = 8 - difficulty * 4 + Math.random() * 4;
+        }
+      }
+
+      let anyGustNearby = false;
+      for (const gu of this.gusts) {
+        gu.x -= gu.speed;
+        gu.phase += dt * 3;
+        const gustLeft = gu.x;
+        const gustRight = gu.x + gu.width;
+        const distToSpirit = gustLeft - this.posX;
+
+        if (distToSpirit < 400 && gustRight > -200) {
+          anyGustNearby = true;
+          const proximity = distToSpirit > 0
+            ? Math.max(0, 1 - distToSpirit / 400)
+            : (gustRight > this.posX ? 1 : Math.max(0, 1 + (gustRight - this.posX) / 100));
+          if (!this.gustWarningActive) {
+            this.sound_mgr.startWindGust(gu.strength);
+            this.gustWarningActive = true;
+          }
+          this.sound_mgr.updateWindGustVolume(proximity, gu.strength);
+        }
+
+        if (this.posX >= gustLeft && this.posX <= gustRight) {
+          const force = gu.strength;
+          if (this.umbrellaOpen > 0.3) {
+            this.velY -= (2.5 + force * 2) * dt * 60 * this.umbrellaOpen;
+            this.posX -= (1.5 + force) * dt * 60;
+          } else {
+            this.velY += (1.2 + force * 0.8) * dt * 60;
+            this.posX -= (0.5 + force * 0.3) * dt * 60;
+          }
+          this.posX = Math.max(50, this.posX);
+        }
+      }
+      this.gusts = this.gusts.filter(gu => gu.x + gu.width > -100);
+      if (!anyGustNearby && this.gustWarningActive) {
+        this.sound_mgr.stopWindGust();
+        this.gustWarningActive = false;
+      }
+
       for (const f of this.fireflies) {
         f.phase += dt * f.speed * 0.5;
         f.y = f.baseY + Math.sin(f.phase) * 20;
@@ -314,6 +381,8 @@ export class ForestSpiritScene extends Phaser.Scene {
         this.isResetting = true;
         this.resetProgress = 0;
         this.sound_mgr.stopUmbrella();
+        this.sound_mgr.stopWindGust();
+        this.gustWarningActive = false;
         this.sound_mgr.playSink();
         this.wasHolding = false;
       }
@@ -344,6 +413,7 @@ export class ForestSpiritScene extends Phaser.Scene {
     this.drawPlats(g, W, sx, sy);
     this.drawAcorns2(g, W, sx, sy);
     this.drawParts(g, sx, sy);
+    this.drawGusts(g, W, H, sx, sy);
 
     if (this.isResetting) {
       this.drawReset(g, W, H);
@@ -475,6 +545,44 @@ export class ForestSpiritScene extends Phaser.Scene {
     for (const p of this.particles) {
       g.fillStyle(p.color, p.life);
       g.fillEllipse(p.x + sx, p.y + sy, p.size * 2, p.size * 1.4);
+    }
+  }
+
+  private drawGusts(g: Phaser.GameObjects.Graphics, W: number, H: number, sx: number, sy: number) {
+    for (const gu of this.gusts) {
+      if (gu.x > W + 100 || gu.x + gu.width < -100) continue;
+
+      const centerX = gu.x + gu.width / 2;
+      const distFromCenter = Math.abs(centerX - W / 2);
+      const alpha = Math.max(0.05, 0.35 - distFromCenter / (W * 1.2));
+
+      g.fillStyle(0xc8dce6, alpha * 0.3);
+      g.fillRect(gu.x + sx, sy, gu.width, H);
+
+      for (const s of gu.streaks) {
+        const streakX = gu.x + s.offset + sx;
+        const waveY = s.y + Math.sin(gu.phase + s.wave) * 12 + sy;
+        const a = alpha * (0.4 + Math.sin(gu.phase * 2 + s.wave) * 0.3);
+
+        g.lineStyle(1.5, 0xd0e8f0, a);
+        g.beginPath();
+        const len = s.len + Math.sin(gu.phase + s.wave) * 15;
+        g.moveTo(streakX, waveY);
+        g.lineTo(streakX - len * 0.3, waveY + Math.sin(gu.phase * 1.5 + s.wave) * 6);
+        g.lineTo(streakX - len * 0.7, waveY + Math.sin(gu.phase * 2 + s.wave) * 4);
+        g.lineTo(streakX - len, waveY);
+        g.strokePath();
+      }
+
+      if (gu.x < W && gu.x + gu.width > 0) {
+        for (let i = 0; i < 3; i++) {
+          const leafX = gu.x + (Math.sin(gu.phase * 0.7 + i * 2) * 0.5 + 0.5) * gu.width + sx;
+          const leafY = 50 + Math.sin(gu.phase + i * 1.5) * 30 + (i * H / 4) + sy;
+          const leafA = alpha * 0.5;
+          g.fillStyle(COLORS.leaves[i % COLORS.leaves.length], leafA);
+          g.fillEllipse(leafX, leafY, 6, 4);
+        }
+      }
     }
   }
 
