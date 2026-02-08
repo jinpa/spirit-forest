@@ -31,6 +31,8 @@ interface GP { x: number; y: number; vx: number; vy: number; life: number; maxLi
 interface Firefly { x: number; y: number; baseY: number; phase: number; speed: number; brightness: number; size: number; }
 type GustDir = 'headwind' | 'tailwind' | 'updraft' | 'downdraft';
 interface WindGust { x: number; width: number; strength: number; speed: number; active: boolean; phase: number; dir: GustDir; streaks: { y: number; len: number; offset: number; wave: number }[]; }
+interface SpiritBird { x: number; y: number; baseY: number; phase: number; wingPhase: number; speed: number; glow: number; touched: boolean; }
+interface TrickPopup { x: number; y: number; life: number; text: string; }
 
 export class ForestSpiritScene extends Phaser.Scene {
   private gfx!: Phaser.GameObjects.Graphics;
@@ -65,6 +67,12 @@ export class ForestSpiritScene extends Phaser.Scene {
   private gustTimer = 0;
   private gustWarningActive = false;
   private inGust = false;
+  private birds: SpiritBird[] = [];
+  private birdTimer = 0;
+  private trickPopups: TrickPopup[] = [];
+  private spinTimer = 0;
+  private spinAngle = 0;
+  private isSpinning = false;
 
   private titleText!: Phaser.GameObjects.Text;
   private instrText1!: Phaser.GameObjects.Text;
@@ -85,6 +93,7 @@ export class ForestSpiritScene extends Phaser.Scene {
   private pauseBtn!: Phaser.GameObjects.Graphics;
   private soundToggleStart!: Phaser.GameObjects.Text;
   private soundTogglePause!: Phaser.GameObjects.Text;
+  private trickText!: Phaser.GameObjects.Text;
 
   constructor() {
     super({ key: 'ForestSpiritScene' });
@@ -133,7 +142,8 @@ export class ForestSpiritScene extends Phaser.Scene {
     this.soundTogglePause = this.add.text(this.scale.width / 2, this.scale.height / 2 + 100, '', soundStyle)
       .setOrigin(0.5).setDepth(30).setVisible(false).setInteractive({ useHandCursor: true });
 
-    this.add.text(this.scale.width - 20, this.scale.height - 20, 'v1.0.5', { ...fontBase, fontSize: '14px', color: '#a0b8c0', shadow })
+    this.trickText = this.add.text(0, 0, '', { ...fontBase, fontSize: '32px', fontStyle: 'bold', color: '#ffd700', shadow }).setOrigin(0.5).setDepth(22).setVisible(false);
+    this.add.text(this.scale.width - 20, this.scale.height - 20, 'v1.1.0', { ...fontBase, fontSize: '14px', color: '#a0b8c0', shadow })
       .setOrigin(1, 1).setDepth(10);
 
     this.soundToggleStart.on('pointerdown', (p: Phaser.Input.Pointer) => {
@@ -234,6 +244,8 @@ export class ForestSpiritScene extends Phaser.Scene {
     this.combo = 0; this.comboTimer = 0; this.shake = 0;
     this.gusts = []; this.gustTimer = 0;
     this.sound_mgr.stopWindGust(); this.gustWarningActive = false;
+    this.birds = []; this.birdTimer = 5 + Math.random() * 5; this.trickPopups = [];
+    this.spinTimer = 0; this.spinAngle = 0; this.isSpinning = false;
     this.platforms = []; this.acorns = []; this.particles = []; this.fireflies = [];
     for (let i = 0; i < 8; i++) this.platforms.push(this.mkPlat(200 + i * 250));
     for (let i = 0; i < 12; i++) this.acorns.push(this.mkAcorn(300 + i * 180 + Math.random() * 100));
@@ -267,6 +279,12 @@ export class ForestSpiritScene extends Phaser.Scene {
     else if (roll < 0.85) dir = 'updraft';
     else dir = 'downdraft';
     return { x: W + 300 + Math.random() * 200, width, strength, speed: 5 + difficulty * 3, active: false, phase: 0, dir, streaks };
+  }
+
+  private mkBird(): SpiritBird {
+    const W = this.scale.width;
+    const y = 100 + Math.random() * 300;
+    return { x: W + 100 + Math.random() * 200, y, baseY: y, phase: Math.random() * Math.PI * 2, wingPhase: Math.random() * Math.PI * 2, speed: 1.5 + Math.random() * 1.5, glow: 0.6 + Math.random() * 0.4, touched: false };
   }
 
   private spawn(x: number, y: number, type: 'bounce' | 'collect' | 'leaf') {
@@ -429,6 +447,55 @@ export class ForestSpiritScene extends Phaser.Scene {
         this.posX += (defaultX - this.posX) * 0.015 * dt * 60;
       }
 
+      this.birdTimer -= dt;
+      if (this.birdTimer <= 0 && this.birds.filter(b => !b.touched).length < 2) {
+        this.birds.push(this.mkBird());
+        this.birdTimer = 8 + Math.random() * 12;
+      }
+
+      for (const bird of this.birds) {
+        if (bird.touched) continue;
+        bird.x -= HORIZONTAL_SPEED + bird.speed;
+        bird.phase += dt * 2;
+        bird.wingPhase += dt * 12;
+        bird.y = bird.baseY + Math.sin(bird.phase) * 25;
+
+        const dx = this.posX - bird.x, dy = this.posY - bird.y;
+        if (!this.isSpinning && Math.sqrt(dx * dx + dy * dy) < 55) {
+          bird.touched = true;
+          this.isSpinning = true;
+          this.spinTimer = 0;
+          this.spinAngle = 0;
+          this.score += 50;
+          this.shake = 2;
+          this.trickPopups.push({ x: this.posX, y: this.posY - 60, life: 1.5, text: 'Trick! +50' });
+
+          for (let i = 0; i < 16; i++) {
+            const a = (Math.PI * 2 * i) / 16;
+            this.particles.push({ x: bird.x, y: bird.y, vx: Math.cos(a) * (2 + Math.random() * 2), vy: Math.sin(a) * (2 + Math.random() * 2) - 1, life: 1, maxLife: 0.8 + Math.random() * 0.4, size: 3 + Math.random() * 4, color: [0xffd700, 0xffe866, 0xfff4b0, 0xa0e0ff][Math.floor(Math.random() * 4)] });
+          }
+
+          this.sound_mgr.playTrick();
+        }
+      }
+      this.birds = this.birds.filter(b => b.x > -150);
+
+      if (this.isSpinning) {
+        this.spinTimer += dt;
+        this.spinAngle = this.spinTimer * Math.PI * 4;
+        if (this.spinTimer >= 0.5) {
+          this.isSpinning = false;
+          this.spinTimer = 0;
+          this.spinAngle = 0;
+        }
+      }
+
+      this.trickPopups = this.trickPopups.filter(p => {
+        p.y -= 40 * dt;
+        p.life -= dt;
+        return p.life > 0;
+      });
+
       for (const f of this.fireflies) {
         f.phase += dt * f.speed * 0.5;
         f.y = f.baseY + Math.sin(f.phase) * 20;
@@ -478,6 +545,7 @@ export class ForestSpiritScene extends Phaser.Scene {
     this.drawFF(g, W, sx, sy);
     this.drawPlats(g, W, sx, sy);
     this.drawAcorns2(g, W, sx, sy);
+    this.drawBirds(g, W, sx, sy);
     this.drawParts(g, sx, sy);
     this.drawGusts(g, W, H, sx, sy);
 
@@ -486,6 +554,7 @@ export class ForestSpiritScene extends Phaser.Scene {
     } else {
       this.drawChar(g, sx, sy);
     }
+    this.drawTrickPopups(g, sx, sy);
 
     this.updateUI(W, H);
   }
@@ -664,11 +733,87 @@ export class ForestSpiritScene extends Phaser.Scene {
     }
   }
 
+  private drawBirds(g: Phaser.GameObjects.Graphics, W: number, sx: number, sy: number) {
+    for (const bird of this.birds) {
+      if (bird.touched) continue;
+      const bx = bird.x + sx, by = bird.y + sy;
+      if (bx < -60 || bx > W + 60) continue;
+
+      const glowPulse = 0.3 + Math.sin(this.t * 3 + bird.phase) * 0.15;
+      g.fillStyle(0xa0e0ff, glowPulse * bird.glow);
+      g.fillCircle(bx, by, 25);
+      g.fillStyle(0xc0f0ff, glowPulse * bird.glow * 0.5);
+      g.fillCircle(bx, by, 35);
+
+      const wingA = Math.sin(bird.wingPhase) * 0.6;
+
+      g.fillStyle(0xe8f4ff, 0.9);
+      g.fillEllipse(bx, by, 24, 16);
+
+      g.fillStyle(0xd0e8ff, 0.85);
+      g.beginPath();
+      g.moveTo(bx - 5, by);
+      g.lineTo(bx - 18, by - 14 * (1 + wingA));
+      g.lineTo(bx - 6, by - 4);
+      g.closePath();
+      g.fillPath();
+      g.beginPath();
+      g.moveTo(bx + 5, by);
+      g.lineTo(bx + 18, by - 14 * (1 + wingA));
+      g.lineTo(bx + 6, by - 4);
+      g.closePath();
+      g.fillPath();
+
+      g.fillStyle(0xf0f8ff, 1);
+      g.fillCircle(bx + 8, by - 2, 7);
+      g.fillStyle(0x2a4a6a, 1);
+      g.fillCircle(bx + 9, by - 2, 2.5);
+      g.fillStyle(0xffffff, 1);
+      g.fillCircle(bx + 10, by - 3, 1);
+
+      g.fillStyle(0xffcc66, 1);
+      g.beginPath();
+      g.moveTo(bx + 14, by);
+      g.lineTo(bx + 19, by - 1);
+      g.lineTo(bx + 14, by + 2);
+      g.closePath();
+      g.fillPath();
+
+      g.fillStyle(0xc0d8f0, 0.7);
+      g.fillEllipse(bx - 4, by + 5, 8, 4);
+      g.fillEllipse(bx + 3, by + 5, 8, 4);
+    }
+  }
+
+  private drawTrickPopups(g: Phaser.GameObjects.Graphics, sx: number, sy: number) {
+    if (this.trickPopups.length > 0) {
+      const p = this.trickPopups[0];
+      const alpha = Math.min(p.life * 2, 1);
+      const scale = 0.5 + (1.5 - p.life) * 0.5;
+      this.trickText.setPosition(p.x + sx, p.y + sy).setText(p.text).setAlpha(alpha).setScale(scale).setVisible(true);
+
+      g.fillStyle(0xffd700, alpha);
+      for (let i = 0; i < 8; i++) {
+        const a = (Math.PI * 2 * i) / 8 + this.t * 4;
+        const r = 18 * scale;
+        g.fillCircle(p.x + sx + Math.cos(a) * r, p.y + sy + Math.sin(a) * r, 2.5);
+      }
+    } else {
+      this.trickText.setVisible(false);
+    }
+  }
+
   private drawChar(g: Phaser.GameObjects.Graphics, sx: number, sy: number) {
     const x = this.posX + sx, y = this.posY + sy;
     const uo = this.umbrellaOpen, sq = this.squish;
-    const scX = 1 + (1 - sq) * 0.3;
+    let scX = 1 + (1 - sq) * 0.3;
     const breathe = Math.sin(this.t * 2) * 2;
+
+    if (this.isSpinning) {
+      scX = Math.cos(this.spinAngle);
+      g.fillStyle(0xffd700, 0.2 + Math.abs(Math.sin(this.spinAngle * 2)) * 0.2);
+      g.fillCircle(x, y, 50);
+    }
 
     if (uo > 0.1) {
       const flipped = this.inGust && uo > 0.3;

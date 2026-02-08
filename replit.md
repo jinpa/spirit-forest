@@ -14,6 +14,7 @@ The game is fully functional with all core mechanics implemented:
 - Pause/restart controls
 - Synthesized wind-chime sound effects with toggle
 - Wind gust difficulty mechanic with progressive scaling
+- Spirit birds with spin trick bonus mechanic
 
 ## Core Mechanics
 - **Single Input**: Hold Spacebar or Mouse Click to open umbrella

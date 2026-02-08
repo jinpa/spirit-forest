@@ -199,6 +199,17 @@ export class SoundManager {
     this.chime(160, 0.5, 0.02, 0.25);
   }
 
+  playTrick() {
+    if (!this.ensure()) return;
+    const base = 1000;
+    for (let i = 0; i < 6; i++) {
+      const ratio = [1, 1.25, 1.5, 2, 2.5, 3][i];
+      this.chime(base * ratio, 0.3 + i * 0.05, 0.06 * (1 - i * 0.08), i * 0.04);
+    }
+    this.chime(base * 4, 0.6, 0.04, 0.25);
+    this.chime(base * 3, 0.5, 0.03, 0.35);
+  }
+
   playWindChime() {
     if (!this.ensure()) return;
     const notes = [523, 587, 659, 784, 880, 1047];
