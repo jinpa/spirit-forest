@@ -49,6 +49,7 @@ export class ForestSpiritScene extends Phaser.Scene {
   private isResetting = false;
   private resetProgress = 0;
   private started = false;
+  private isIOS = false;
   private bestScore = 0;
   private combo = 0;
   private comboTimer = 0;
@@ -102,10 +103,14 @@ export class ForestSpiritScene extends Phaser.Scene {
     this.comboText = this.add.text(this.scale.width / 2, 100, '', { ...fontBase, fontSize: '36px', fontStyle: 'bold', shadow, align: 'center' }).setOrigin(0.5).setDepth(10);
 
     this.titleText = this.add.text(this.scale.width / 2, this.scale.height / 2 - 80, 'Forest Spirit Journey', { ...fontBase, fontSize: '42px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(20);
-    this.instrText1 = this.add.text(this.scale.width / 2, this.scale.height / 2 - 20, 'Hold SPACE or CLICK to open umbrella and float', { ...fontBase, fontSize: '24px' }).setOrigin(0.5).setDepth(20);
+    this.isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const tapWord = this.isIOS ? 'TOUCH' : 'CLICK';
+    const tapWordLower = this.isIOS ? 'Touch' : 'Click';
+
+    this.instrText1 = this.add.text(this.scale.width / 2, this.scale.height / 2 - 20, `Hold SPACE or ${tapWord} to open umbrella and float`, { ...fontBase, fontSize: '24px' }).setOrigin(0.5).setDepth(20);
     this.instrText2 = this.add.text(this.scale.width / 2, this.scale.height / 2 + 20, 'Release to fall and bounce on tree canopies', { ...fontBase, fontSize: '24px' }).setOrigin(0.5).setDepth(20);
     this.instrText3 = this.add.text(this.scale.width / 2, this.scale.height / 2 + 60, 'Collect acorns along the way!', { ...fontBase, fontSize: '24px' }).setOrigin(0.5).setDepth(20);
-    this.startText = this.add.text(this.scale.width / 2, this.scale.height / 2 + 130, 'Click or Press SPACE to begin', { ...fontBase, fontSize: '28px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(20);
+    this.startText = this.add.text(this.scale.width / 2, this.scale.height / 2 + 130, `${tapWordLower} or Press SPACE to begin`, { ...fontBase, fontSize: '28px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(20);
 
     this.resetText = this.add.text(this.scale.width / 2, this.scale.height - 80, '', { ...fontBase, fontSize: '24px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(20).setVisible(false);
 
@@ -126,15 +131,17 @@ export class ForestSpiritScene extends Phaser.Scene {
     this.soundTogglePause = this.add.text(this.scale.width / 2, this.scale.height / 2 + 100, '', soundStyle)
       .setOrigin(0.5).setDepth(30).setVisible(false).setInteractive({ useHandCursor: true });
 
-    this.add.text(this.scale.width - 20, this.scale.height - 20, 'v1.0.3', { ...fontBase, fontSize: '14px', color: '#a0b8c0', shadow })
+    this.add.text(this.scale.width - 20, this.scale.height - 20, 'v1.0.4', { ...fontBase, fontSize: '14px', color: '#a0b8c0', shadow })
       .setOrigin(1, 1).setDepth(10);
 
     this.soundToggleStart.on('pointerdown', (p: Phaser.Input.Pointer) => {
       p.event.stopPropagation();
+      this.sound_mgr.unlock();
       this.sound_mgr.enabled = !this.sound_mgr.enabled;
     });
     this.soundTogglePause.on('pointerdown', (p: Phaser.Input.Pointer) => {
       p.event.stopPropagation();
+      this.sound_mgr.unlock();
       this.sound_mgr.enabled = !this.sound_mgr.enabled;
     });
 
@@ -184,6 +191,7 @@ export class ForestSpiritScene extends Phaser.Scene {
   }
 
   private doHold() {
+    this.sound_mgr.unlock();
     if (!this.started && !this.isResetting) {
       this.started = true;
       this.showInst = false;
@@ -911,7 +919,7 @@ export class ForestSpiritScene extends Phaser.Scene {
       } else if (this.resetProgress < 1.2) {
         this.resetText.setText('Resting in the soft bushes...');
       } else {
-        this.resetText.setText('Click or press SPACE to continue...');
+        this.resetText.setText(this.isIOS ? 'Touch to continue...' : 'Click or press SPACE to continue...');
         this.resetText.setAlpha(0.5 + Math.sin(this.t * 2) * 0.3);
       }
     } else {

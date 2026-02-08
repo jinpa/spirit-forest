@@ -1,6 +1,7 @@
 export class SoundManager {
   private ctx: AudioContext | null = null;
   private _enabled = true;
+  private _unlocked = false;
   private windOsc: OscillatorNode | null = null;
   private windGain: GainNode | null = null;
   private umbrellaOsc: OscillatorNode | null = null;
@@ -14,7 +15,24 @@ export class SoundManager {
 
   private init() {
     if (this.ctx) return;
-    this.ctx = new AudioContext();
+    this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+  }
+
+  unlock() {
+    this.init();
+    const c = this.ctx!;
+    if (c.state === 'suspended') {
+      c.resume().catch(() => {});
+    }
+    if (!this._unlocked) {
+      this._unlocked = true;
+      const buf = c.createBuffer(1, 1, c.sampleRate);
+      const src = c.createBufferSource();
+      src.buffer = buf;
+      src.connect(c.destination);
+      src.start(0);
+      src.stop(c.currentTime + 0.001);
+    }
   }
 
   private ensure() {

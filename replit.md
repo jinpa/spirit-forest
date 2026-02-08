@@ -48,6 +48,7 @@ The game is fully functional with all core mechanics implemented:
   - Sink: Descending tone when falling off screen
   - Ambient: Random wind chime notes every 4-10 seconds
   - Wind Gust: Low sine oscillator + filtered noise whoosh, volume scales with proximity
+- **iOS Support**: AudioContext unlock on first user interaction (silent buffer trick + resume), plus webkitAudioContext fallback
 - **Toggle**: Clickable "Sound: ON/OFF" on start screen and pause menu
 - **Default**: Sound enabled (ON)
 
