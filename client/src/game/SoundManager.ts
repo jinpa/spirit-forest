@@ -19,20 +19,48 @@ export class SoundManager {
   }
 
   unlock() {
-    this.init();
-    const c = this.ctx!;
+    if (this._unlocked) return;
+    this._unlocked = true;
+    if (!this.ctx) {
+      this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    const c = this.ctx;
     if (c.state === 'suspended') {
-      c.resume().catch(() => {});
+      c.resume();
     }
-    if (!this._unlocked) {
-      this._unlocked = true;
-      const buf = c.createBuffer(1, 1, c.sampleRate);
-      const src = c.createBufferSource();
-      src.buffer = buf;
-      src.connect(c.destination);
-      src.start(0);
-      src.stop(c.currentTime + 0.001);
-    }
+    const buf = c.createBuffer(1, 1, c.sampleRate);
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    src.connect(c.destination);
+    src.start(0);
+    src.stop(c.currentTime + 0.001);
+  }
+
+  unlockFromDOM(canvas: HTMLCanvasElement) {
+    const handler = () => {
+      if (!this.ctx) {
+        this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const c = this.ctx;
+      if (c.state === 'suspended') {
+        c.resume();
+      }
+      if (!this._unlocked) {
+        this._unlocked = true;
+        const buf = c.createBuffer(1, 1, c.sampleRate);
+        const src = c.createBufferSource();
+        src.buffer = buf;
+        src.connect(c.destination);
+        src.start(0);
+        src.stop(c.currentTime + 0.001);
+      }
+      canvas.removeEventListener('touchstart', handler, true);
+      canvas.removeEventListener('touchend', handler, true);
+      canvas.removeEventListener('mousedown', handler, true);
+    };
+    canvas.addEventListener('touchstart', handler, true);
+    canvas.addEventListener('touchend', handler, true);
+    canvas.addEventListener('mousedown', handler, true);
   }
 
   private ensure() {

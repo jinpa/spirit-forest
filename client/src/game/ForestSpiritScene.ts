@@ -104,13 +104,14 @@ export class ForestSpiritScene extends Phaser.Scene {
 
     this.titleText = this.add.text(this.scale.width / 2, this.scale.height / 2 - 80, 'Forest Spirit Journey', { ...fontBase, fontSize: '42px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(20);
     this.isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    const tapWord = this.isIOS ? 'TOUCH' : 'CLICK';
-    const tapWordLower = this.isIOS ? 'Touch' : 'Click';
 
-    this.instrText1 = this.add.text(this.scale.width / 2, this.scale.height / 2 - 20, `Hold SPACE or ${tapWord} to open umbrella and float`, { ...fontBase, fontSize: '24px' }).setOrigin(0.5).setDepth(20);
+    const instrLine1 = this.isIOS ? 'Hold screen to open umbrella and float' : 'Hold SPACE or CLICK to open umbrella and float';
+    const startLine = this.isIOS ? 'Touch to begin' : 'Click or Press SPACE to begin';
+
+    this.instrText1 = this.add.text(this.scale.width / 2, this.scale.height / 2 - 20, instrLine1, { ...fontBase, fontSize: '24px' }).setOrigin(0.5).setDepth(20);
     this.instrText2 = this.add.text(this.scale.width / 2, this.scale.height / 2 + 20, 'Release to fall and bounce on tree canopies', { ...fontBase, fontSize: '24px' }).setOrigin(0.5).setDepth(20);
     this.instrText3 = this.add.text(this.scale.width / 2, this.scale.height / 2 + 60, 'Collect acorns along the way!', { ...fontBase, fontSize: '24px' }).setOrigin(0.5).setDepth(20);
-    this.startText = this.add.text(this.scale.width / 2, this.scale.height / 2 + 130, `${tapWordLower} or Press SPACE to begin`, { ...fontBase, fontSize: '28px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(20);
+    this.startText = this.add.text(this.scale.width / 2, this.scale.height / 2 + 130, startLine, { ...fontBase, fontSize: '28px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(20);
 
     this.resetText = this.add.text(this.scale.width / 2, this.scale.height - 80, '', { ...fontBase, fontSize: '24px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(20).setVisible(false);
 
@@ -118,7 +119,8 @@ export class ForestSpiritScene extends Phaser.Scene {
     this.pauseTitleText = this.add.text(this.scale.width / 2, this.scale.height / 2 - 80, 'Paused', { ...fontBase, fontSize: '48px', fontStyle: 'bold', shadow }).setOrigin(0.5).setDepth(30).setVisible(false);
     this.resumeText = this.add.text(this.scale.width / 2, this.scale.height / 2, 'Resume', { ...fontBase, fontSize: '32px', shadow }).setOrigin(0.5).setDepth(30).setVisible(false).setInteractive({ useHandCursor: true });
     this.restartText = this.add.text(this.scale.width / 2, this.scale.height / 2 + 55, 'Restart', { ...fontBase, fontSize: '32px', shadow }).setOrigin(0.5).setDepth(30).setVisible(false).setInteractive({ useHandCursor: true });
-    this.pauseHintText = this.add.text(this.scale.width / 2, this.scale.height / 2 + 130, 'Press ESC to resume', { ...fontBase, fontSize: '20px', color: '#a0b8c0' }).setOrigin(0.5).setDepth(30).setVisible(false);
+    const pauseHint = this.isIOS ? 'Tap Resume or Restart' : 'Press ESC to resume';
+    this.pauseHintText = this.add.text(this.scale.width / 2, this.scale.height / 2 + 130, pauseHint, { ...fontBase, fontSize: '20px', color: '#a0b8c0' }).setOrigin(0.5).setDepth(30).setVisible(false);
 
     this.pauseBtn = this.add.graphics().setDepth(12).setInteractive(
       new Phaser.Geom.Rectangle(0, 0, 40, 40),
@@ -131,7 +133,7 @@ export class ForestSpiritScene extends Phaser.Scene {
     this.soundTogglePause = this.add.text(this.scale.width / 2, this.scale.height / 2 + 100, '', soundStyle)
       .setOrigin(0.5).setDepth(30).setVisible(false).setInteractive({ useHandCursor: true });
 
-    this.add.text(this.scale.width - 20, this.scale.height - 20, 'v1.0.4', { ...fontBase, fontSize: '14px', color: '#a0b8c0', shadow })
+    this.add.text(this.scale.width - 20, this.scale.height - 20, 'v1.0.5', { ...fontBase, fontSize: '14px', color: '#a0b8c0', shadow })
       .setOrigin(1, 1).setDepth(10);
 
     this.soundToggleStart.on('pointerdown', (p: Phaser.Input.Pointer) => {
@@ -153,6 +155,9 @@ export class ForestSpiritScene extends Phaser.Scene {
     });
 
     this.initGame();
+
+    const canvas = this.game.canvas;
+    if (canvas) this.sound_mgr.unlockFromDOM(canvas);
 
     this.input.keyboard!.on('keydown-SPACE', (e: KeyboardEvent) => { e.preventDefault(); if (!this.isPaused) this.doHold(); });
     this.input.keyboard!.on('keyup-SPACE', () => { if (!this.isPaused) this.isHolding = false; });
