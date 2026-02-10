@@ -150,7 +150,7 @@ export class ForestSpiritScene extends Phaser.Scene {
       .setOrigin(0.5).setDepth(30).setVisible(false).setInteractive({ useHandCursor: true });
 
     this.trickText = this.add.text(0, 0, '', { ...fontBase, fontSize: '32px', fontStyle: 'bold', color: '#ffd700', shadow }).setOrigin(0.5).setDepth(22).setVisible(false);
-    this.add.text(this.scale.width - 20, this.scale.height - 20, 'v1.1.0', { ...fontBase, fontSize: '14px', color: '#a0b8c0', shadow })
+    this.add.text(this.scale.width - 20, this.scale.height - 20, 'v1.2.0', { ...fontBase, fontSize: '16px', fontStyle: 'bold', color: '#f6e7b2', shadow })
       .setOrigin(1, 1).setDepth(10);
 
     const alertStyle = { ...fontBase, fontSize: '28px', fontStyle: 'bold', color: '#f4f6f0', shadow };
