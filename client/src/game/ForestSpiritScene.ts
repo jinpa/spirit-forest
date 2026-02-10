@@ -33,6 +33,7 @@ type GustDir = 'headwind' | 'tailwind' | 'updraft' | 'downdraft';
 interface WindGust { x: number; width: number; strength: number; speed: number; active: boolean; phase: number; dir: GustDir; streaks: { y: number; len: number; offset: number; wave: number }[]; }
 interface SpiritBird { x: number; y: number; baseY: number; phase: number; wingPhase: number; speed: number; glow: number; touched: boolean; }
 interface TrickPopup { x: number; y: number; life: number; text: string; }
+interface FogBank { x: number; width: number; height: number; baseY: number; bobAmp: number; phase: number; speed: number; strength: number; }
 
 export class ForestSpiritScene extends Phaser.Scene {
   private gfx!: Phaser.GameObjects.Graphics;
@@ -67,6 +68,10 @@ export class ForestSpiritScene extends Phaser.Scene {
   private gustTimer = 0;
   private gustWarningActive = false;
   private inGust = false;
+  private fogBanks: FogBank[] = [];
+  private fogTimer = 0;
+  private fogStrength = 0;
+  private fogSoundActive = false;
   private birds: SpiritBird[] = [];
   private birdTimer = 0;
   private trickPopups: TrickPopup[] = [];
@@ -94,6 +99,8 @@ export class ForestSpiritScene extends Phaser.Scene {
   private soundToggleStart!: Phaser.GameObjects.Text;
   private soundTogglePause!: Phaser.GameObjects.Text;
   private trickText!: Phaser.GameObjects.Text;
+  private windAlertText!: Phaser.GameObjects.Text;
+  private fogAlertText!: Phaser.GameObjects.Text;
 
   constructor() {
     super({ key: 'ForestSpiritScene' });
@@ -146,6 +153,10 @@ export class ForestSpiritScene extends Phaser.Scene {
     this.add.text(this.scale.width - 20, this.scale.height - 20, 'v1.1.0', { ...fontBase, fontSize: '14px', color: '#a0b8c0', shadow })
       .setOrigin(1, 1).setDepth(10);
 
+    const alertStyle = { ...fontBase, fontSize: '28px', fontStyle: 'bold', color: '#f4f6f0', shadow };
+    this.windAlertText = this.add.text(this.scale.width / 2, 20, 'Wind!', alertStyle).setOrigin(0.5, 0).setDepth(15).setVisible(false);
+    this.fogAlertText = this.add.text(this.scale.width / 2, 52, 'Fog!', alertStyle).setOrigin(0.5, 0).setDepth(15).setVisible(false);
+
     this.soundToggleStart.on('pointerdown', (p: Phaser.Input.Pointer) => {
       p.event.stopPropagation();
       this.sound_mgr.unlock();
@@ -191,6 +202,8 @@ export class ForestSpiritScene extends Phaser.Scene {
   private repositionUI(w: number, h: number) {
     this.bestText.setX(w - 65);
     this.comboText.setX(w / 2);
+    this.windAlertText.setPosition(w / 2, 20);
+    this.fogAlertText.setPosition(w / 2, 52);
     this.titleText.setPosition(w / 2, h / 2 - 80);
     this.instrText1.setPosition(w / 2, h / 2 - 20);
     this.instrText2.setPosition(w / 2, h / 2 + 20);
@@ -221,6 +234,8 @@ export class ForestSpiritScene extends Phaser.Scene {
     if (this.isPaused) {
       this.sound_mgr.stopUmbrella();
       this.sound_mgr.stopWindGust();
+      this.sound_mgr.stopFog();
+      this.fogSoundActive = false;
       this.gustWarningActive = false;
       this.wasHolding = false;
     }
@@ -244,6 +259,8 @@ export class ForestSpiritScene extends Phaser.Scene {
     this.combo = 0; this.comboTimer = 0; this.shake = 0;
     this.gusts = []; this.gustTimer = 0;
     this.sound_mgr.stopWindGust(); this.gustWarningActive = false;
+    this.fogBanks = []; this.fogTimer = 0; this.fogStrength = 0;
+    this.sound_mgr.stopFog(); this.fogSoundActive = false;
     this.birds = []; this.birdTimer = 5 + Math.random() * 5; this.trickPopups = [];
     this.spinTimer = 0; this.spinAngle = 0; this.isSpinning = false;
     this.platforms = []; this.acorns = []; this.particles = []; this.fireflies = [];
@@ -287,6 +304,24 @@ export class ForestSpiritScene extends Phaser.Scene {
     return { x: W + 100 + Math.random() * 200, y, baseY: y, phase: Math.random() * Math.PI * 2, wingPhase: Math.random() * Math.PI * 2, speed: 1.5 + Math.random() * 1.5, glow: 0.6 + Math.random() * 0.4, touched: false };
   }
 
+  private mkFogBank(): FogBank {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const width = 260 + Math.random() * 200;
+    const height = 150 + Math.random() * 180;
+    const baseY = 140 + Math.random() * (H - 280);
+    return {
+      x: W + 200 + Math.random() * 200,
+      width,
+      height,
+      baseY,
+      bobAmp: 10 + Math.random() * 20,
+      phase: Math.random() * Math.PI * 2,
+      speed: 1.4 + Math.random() * 1.4,
+      strength: 0.4 + Math.random() * 0.4,
+    };
+  }
+
   private spawn(x: number, y: number, type: 'bounce' | 'collect' | 'leaf') {
     const count = type === 'collect' ? 12 : type === 'bounce' ? 8 : 3;
     const cols = type === 'collect' ? COLORS.petals : COLORS.leaves;
@@ -305,6 +340,8 @@ export class ForestSpiritScene extends Phaser.Scene {
     if (!this.isPaused) {
       this.t += dt;
     }
+
+    this.fogStrength = 0;
 
     if (this.started && !this.isResetting && !this.isPaused) {
       this.umbrellaOpen = this.isHolding
@@ -364,6 +401,14 @@ export class ForestSpiritScene extends Phaser.Scene {
           this.gusts.push(this.mkGust());
           const difficulty = Math.min(this.dist / 15000, 1);
           this.gustTimer = 8 - difficulty * 4 + Math.random() * 4;
+        }
+      }
+
+      if (this.dist > 1200) {
+        this.fogTimer -= dt;
+        if (this.fogTimer <= 0 && this.fogBanks.length < 2) {
+          this.fogBanks.push(this.mkFogBank());
+          this.fogTimer = 6 + Math.random() * 6;
         }
       }
 
@@ -438,6 +483,32 @@ export class ForestSpiritScene extends Phaser.Scene {
       if (!anyGustNearby && this.gustWarningActive) {
         this.sound_mgr.stopWindGust();
         this.gustWarningActive = false;
+      }
+
+      for (const fb of this.fogBanks) {
+        fb.x -= (HORIZONTAL_SPEED * 0.5 + fb.speed) * dt * 60;
+        fb.phase += dt * 0.6;
+        const y = fb.baseY + Math.sin(fb.phase) * fb.bobAmp;
+        const dx = Math.abs(this.posX - (fb.x + fb.width / 2));
+        const dy = Math.abs(this.posY - y);
+        const fx = 1 - dx / (fb.width * 0.5);
+        const fy = 1 - dy / (fb.height * 0.5);
+        if (fx > 0 && fy > 0) {
+          const local = fb.strength * Math.min(fx, fy);
+          if (local > this.fogStrength) this.fogStrength = local;
+        }
+      }
+      this.fogBanks = this.fogBanks.filter(fb => fb.x + fb.width > -200);
+
+      if (this.fogStrength > 0.05) {
+        if (!this.fogSoundActive) {
+          this.sound_mgr.startFog(this.fogStrength);
+          this.fogSoundActive = true;
+        }
+        this.sound_mgr.updateFogVolume(this.fogStrength);
+      } else if (this.fogSoundActive) {
+        this.sound_mgr.stopFog();
+        this.fogSoundActive = false;
       }
 
       const defaultX = 150;
@@ -515,6 +586,8 @@ export class ForestSpiritScene extends Phaser.Scene {
         this.resetProgress = 0;
         this.sound_mgr.stopUmbrella();
         this.sound_mgr.stopWindGust();
+        this.sound_mgr.stopFog();
+        this.fogSoundActive = false;
         this.gustWarningActive = false;
         this.sound_mgr.playSink();
         this.wasHolding = false;
@@ -546,8 +619,10 @@ export class ForestSpiritScene extends Phaser.Scene {
     this.drawPlats(g, W, sx, sy);
     this.drawAcorns2(g, W, sx, sy);
     this.drawBirds(g, W, sx, sy);
+    this.drawFogBanks(g, W, H, sx, sy);
     this.drawParts(g, sx, sy);
     this.drawGusts(g, W, H, sx, sy);
+    this.drawFogOverlay(g, W, H, sx, sy);
 
     if (this.isResetting) {
       this.drawReset(g, W, H);
@@ -731,6 +806,39 @@ export class ForestSpiritScene extends Phaser.Scene {
         }
       }
     }
+  }
+
+  private drawFogBanks(g: Phaser.GameObjects.Graphics, W: number, H: number, sx: number, sy: number) {
+    for (const fb of this.fogBanks) {
+      if (fb.x > W + 200 || fb.x + fb.width < -200) continue;
+      const y = fb.baseY + Math.sin(fb.phase) * fb.bobAmp;
+      const baseAlpha = 0.12 + fb.strength * 0.18;
+      const distAhead = fb.x - this.posX;
+      if (distAhead > 40 && distAhead < 260) {
+        const warn = 1 - (distAhead - 40) / 220;
+        const warnAlpha = 0.05 + warn * 0.1;
+        g.fillStyle(0xc8dce6, warnAlpha);
+        g.fillRect(fb.x - 20 + sx, sy, 40, H);
+      }
+      for (let i = 0; i < 5; i++) {
+        const t = i / 4;
+        const x = fb.x + fb.width * t + sx;
+        const wobble = Math.sin(this.t * 0.4 + fb.phase + i) * 6;
+        const ew = fb.width * 0.55;
+        const eh = fb.height * (0.55 + Math.sin(this.t * 0.3 + i) * 0.08);
+        g.fillStyle(0xc8dce6, baseAlpha);
+        g.fillEllipse(x, y + wobble + sy, ew, eh);
+        g.fillStyle(0xb8ceda, baseAlpha * 0.6);
+        g.fillEllipse(x + ew * 0.12, y + 10 + wobble + sy, ew * 0.8, eh * 0.7);
+      }
+    }
+  }
+
+  private drawFogOverlay(g: Phaser.GameObjects.Graphics, W: number, H: number, sx: number, sy: number) {
+    if (this.fogStrength <= 0.02) return;
+    const alpha = 0.18 + this.fogStrength * 0.45;
+    g.fillStyle(0xc8dce6, alpha);
+    g.fillRect(sx, sy, W, H);
   }
 
   private drawBirds(g: Phaser.GameObjects.Graphics, W: number, sx: number, sy: number) {
@@ -1114,5 +1222,11 @@ export class ForestSpiritScene extends Phaser.Scene {
       this.pauseHintText.setVisible(false);
       this.soundTogglePause.setVisible(false);
     }
+
+    const showAlerts = this.started && !this.isResetting && !this.showInst && !this.isPaused;
+    const windAlpha = showAlerts ? (this.inGust ? 1 : this.gustWarningActive ? 0.6 : 0) : 0;
+    const fogAlpha = showAlerts ? Math.min(1, this.fogStrength * 1.4) : 0;
+    this.windAlertText.setVisible(windAlpha > 0.01).setAlpha(windAlpha);
+    this.fogAlertText.setVisible(fogAlpha > 0.01).setAlpha(fogAlpha);
   }
 }

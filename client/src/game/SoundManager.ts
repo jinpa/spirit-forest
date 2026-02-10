@@ -226,6 +226,11 @@ export class SoundManager {
   private gustLfo: OscillatorNode | null = null;
   private gustNoiseSource: AudioBufferSourceNode | null = null;
   private gustNoiseGain: GainNode | null = null;
+  private fogOsc: OscillatorNode | null = null;
+  private fogGain: GainNode | null = null;
+  private fogLfo: OscillatorNode | null = null;
+  private fogNoiseSource: AudioBufferSourceNode | null = null;
+  private fogNoiseGain: GainNode | null = null;
 
   startWindGust(intensity: number) {
     if (!this.ensure()) return;
@@ -307,9 +312,92 @@ export class SoundManager {
     }, 300);
   }
 
+  startFog(intensity: number) {
+    if (!this.ensure()) return;
+    if (this.fogOsc) return;
+    const c = this.ctx!;
+    const t = c.currentTime;
+
+    this.fogOsc = c.createOscillator();
+    this.fogGain = c.createGain();
+    this.fogOsc.type = 'triangle';
+    this.fogOsc.frequency.setValueAtTime(140 + intensity * 80, t);
+    this.fogGain.gain.setValueAtTime(0, t);
+    this.fogGain.gain.linearRampToValueAtTime(0.01 + intensity * 0.02, t + 0.5);
+
+    this.fogLfo = c.createOscillator();
+    const lfoG = c.createGain();
+    this.fogLfo.type = 'sine';
+    this.fogLfo.frequency.value = 0.5 + intensity * 0.6;
+    lfoG.gain.value = 10 + intensity * 8;
+    this.fogLfo.connect(lfoG);
+    lfoG.connect(this.fogOsc.frequency);
+    this.fogLfo.start(t);
+
+    this.fogOsc.connect(this.fogGain);
+    this.fogGain.connect(c.destination);
+    this.fogOsc.start(t);
+
+    const bufSize = c.sampleRate * 2;
+    const buf = c.createBuffer(1, bufSize, c.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1);
+    this.fogNoiseSource = c.createBufferSource();
+    this.fogNoiseSource.buffer = buf;
+    this.fogNoiseSource.loop = true;
+    this.fogNoiseGain = c.createGain();
+    this.fogNoiseGain.gain.setValueAtTime(0, t);
+    this.fogNoiseGain.gain.linearRampToValueAtTime(0.015 + intensity * 0.03, t + 0.6);
+    const filt = c.createBiquadFilter();
+    filt.type = 'lowpass';
+    filt.frequency.value = 260 + intensity * 140;
+    filt.Q.value = 0.7;
+    this.fogNoiseSource.connect(filt);
+    filt.connect(this.fogNoiseGain);
+    this.fogNoiseGain.connect(c.destination);
+    this.fogNoiseSource.start(t);
+  }
+
+  updateFogVolume(intensity: number) {
+    if (!this.fogGain || !this.fogNoiseGain || !this.ctx || this.ctx.state === 'closed') return;
+    const t = this.ctx.currentTime;
+    const vol = 0.01 + intensity * 0.03;
+    const noiseVol = 0.015 + intensity * 0.04;
+    this.fogGain.gain.setTargetAtTime(vol, t, 0.1);
+    this.fogNoiseGain.gain.setTargetAtTime(noiseVol, t, 0.1);
+  }
+
+  stopFog() {
+    if (!this.fogOsc) return;
+    try {
+      if (this.fogGain && this.ctx && this.ctx.state !== 'closed') {
+        this.fogGain.gain.cancelScheduledValues(this.ctx.currentTime);
+        this.fogGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.2);
+      }
+      if (this.fogNoiseGain && this.ctx && this.ctx.state !== 'closed') {
+        this.fogNoiseGain.gain.cancelScheduledValues(this.ctx.currentTime);
+        this.fogNoiseGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.2);
+      }
+    } catch {}
+    const osc = this.fogOsc;
+    const lfo = this.fogLfo;
+    const noise = this.fogNoiseSource;
+    this.fogOsc = null;
+    this.fogGain = null;
+    this.fogLfo = null;
+    this.fogNoiseSource = null;
+    this.fogNoiseGain = null;
+    setTimeout(() => {
+      try { if (lfo) { lfo.disconnect(); lfo.stop(); } } catch {}
+      try { osc.disconnect(); osc.stop(); } catch {}
+      try { if (noise) { noise.disconnect(); noise.stop(); } } catch {}
+    }, 300);
+  }
+
   destroy() {
     this.stopUmbrella();
     this.stopWindGust();
+    this.stopFog();
     if (this.ctx && this.ctx.state !== 'closed') {
       this.ctx.close().catch(() => {});
     }
